@@ -4,7 +4,6 @@
   <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/raha-io/joghd?style=for-the-badge&logo=go">
 </div>
 
-
 URL health check service written in Go. Monitors endpoints, validates HTTP status codes, and sends alerts (Telegram) on failures and recoveries.
 
 ## Features
