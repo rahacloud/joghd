@@ -41,6 +41,10 @@ bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 chat_id = "-1001234567890"
 # Timeout for Telegram API requests
 timeout = "10s"
+# Optional: company name shown in alert footer
+# company = "Acme Corp"
+# Optional: contact point shown in alert footer
+# contact = "@oncall-team"
 
 # Define targets to monitor
 # Each target is defined as [[targets]]

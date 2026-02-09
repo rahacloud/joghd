@@ -25,8 +25,10 @@ type telegramResponse struct {
 
 // TelegramAlerter sends alerts via Telegram Bot API.
 type TelegramAlerter struct {
-	client *resty.Client
-	chatID string
+	client  *resty.Client
+	chatID  string
+	company string
+	contact string
 }
 
 // NewTelegramAlerter creates a new Telegram alerter.
@@ -36,8 +38,10 @@ func NewTelegramAlerter(cfg config.TelegramConfig) *TelegramAlerter {
 		SetTimeout(cfg.Timeout)
 
 	return &TelegramAlerter{
-		client: client,
-		chatID: cfg.ChatID,
+		client:  client,
+		chatID:  cfg.ChatID,
+		company: cfg.Company,
+		contact: cfg.Contact,
 	}
 }
 
@@ -49,7 +53,7 @@ func (t *TelegramAlerter) Send(ctx context.Context, alert domain.Alert) error {
 		SetContext(ctx).
 		SetBody(sendMessageRequest{
 			ChatID:    t.chatID,
-			Text:      formatTelegramMessage(alert),
+			Text:      formatTelegramMessage(alert, t.company, t.contact),
 			ParseMode: "HTML",
 		}).
 		SetResult(&result).
@@ -71,7 +75,7 @@ func (t *TelegramAlerter) Name() string {
 	return "telegram"
 }
 
-func formatTelegramMessage(alert domain.Alert) string {
+func formatTelegramMessage(alert domain.Alert, company, contact string) string {
 	var header string
 
 	if alert.Type == domain.AlertTypeRecovery {
@@ -89,9 +93,10 @@ func formatTelegramMessage(alert domain.Alert) string {
 	}
 
 	details := fmt.Sprintf(""+
-		"🔗 <code>%s</code>\n"+
-		"📊 %d → %d\n"+
-		"⏱ %s  ·  🔄 %d attempt(s)\n"+
+		"🔗 <code>%s</code>\n\n"+
+		"📊 Expected: %d → Actual: %d\n\n"+
+		"⏱ Latency: %s\n\n"+
+		"🔄 Attempts: %d\n\n"+
 		"🕐 %s",
 		alert.Target.URL,
 		alert.Target.ExpectedStatus,
@@ -105,6 +110,17 @@ func formatTelegramMessage(alert domain.Alert) string {
 
 	if alert.Result.Error != nil && alert.Type == domain.AlertTypeFailure {
 		msg += fmt.Sprintf("\n\n⚠️ <code>%s</code>", alert.Result.Error.Error())
+	}
+
+	var footer string
+	if company != "" {
+		footer += fmt.Sprintf("\n🏢 %s", company)
+	}
+	if contact != "" {
+		footer += fmt.Sprintf("\n👤 %s", contact)
+	}
+	if footer != "" {
+		msg += "\n\n<blockquote>" + footer + "\n</blockquote>"
 	}
 
 	return msg
