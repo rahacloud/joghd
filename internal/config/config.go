@@ -51,9 +51,10 @@ type AlertersConfig struct {
 
 // TelegramConfig holds Telegram alerter settings.
 type TelegramConfig struct {
-	Enabled  bool   `koanf:"enabled"`
-	BotToken string `koanf:"bot_token"`
-	ChatID   string `koanf:"chat_id"`
+	Enabled  bool          `koanf:"enabled"`
+	BotToken string        `koanf:"bot_token"`
+	ChatID   string        `koanf:"chat_id"`
+	Timeout  time.Duration `koanf:"timeout"`
 }
 
 // Load loads configuration from file and environment variables.

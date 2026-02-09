@@ -24,6 +24,7 @@ func Default() Config {
 		Alerters: AlertersConfig{
 			Telegram: TelegramConfig{
 				Enabled: false,
+				Timeout: 10 * time.Second,
 			},
 		},
 	}

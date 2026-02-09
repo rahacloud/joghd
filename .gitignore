@@ -30,7 +30,7 @@ go.work.sum
 config.toml
 
 # Binary
-joghd
+/joghd
 
 # Editor/IDE
 # .idea/

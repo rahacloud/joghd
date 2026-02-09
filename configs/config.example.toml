@@ -39,6 +39,8 @@ enabled = true
 bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 # Telegram Chat ID (can be overridden via JOGHD_ALERTERS_TELEGRAM_CHAT_ID)
 chat_id = "-1001234567890"
+# Timeout for Telegram API requests
+timeout = "10s"
 
 # Define targets to monitor
 # Each target is defined as [[targets]]
