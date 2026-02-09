@@ -55,8 +55,6 @@ type TelegramConfig struct {
 	BotToken string        `koanf:"bot_token"`
 	ChatID   string        `koanf:"chat_id"`
 	Timeout  time.Duration `koanf:"timeout"`
-	Company  string        `koanf:"company"`
-	Contact  string        `koanf:"contact"`
 }
 
 // Load loads configuration from file and environment variables.

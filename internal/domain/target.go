@@ -11,6 +11,8 @@ type Target struct {
 	Timeout        time.Duration     `koanf:"timeout"`
 	Interval       time.Duration     `koanf:"interval"`
 	Headers        map[string]string `koanf:"headers"`
+	Company        string            `koanf:"company"`
+	Contact        string            `koanf:"contact"`
 }
 
 // CheckResult represents the outcome of a health check.

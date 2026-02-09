@@ -25,10 +25,8 @@ type telegramResponse struct {
 
 // TelegramAlerter sends alerts via Telegram Bot API.
 type TelegramAlerter struct {
-	client  *resty.Client
-	chatID  string
-	company string
-	contact string
+	client *resty.Client
+	chatID string
 }
 
 // NewTelegramAlerter creates a new Telegram alerter.
@@ -38,10 +36,8 @@ func NewTelegramAlerter(cfg config.TelegramConfig) *TelegramAlerter {
 		SetTimeout(cfg.Timeout)
 
 	return &TelegramAlerter{
-		client:  client,
-		chatID:  cfg.ChatID,
-		company: cfg.Company,
-		contact: cfg.Contact,
+		client: client,
+		chatID: cfg.ChatID,
 	}
 }
 
@@ -53,7 +49,7 @@ func (t *TelegramAlerter) Send(ctx context.Context, alert domain.Alert) error {
 		SetContext(ctx).
 		SetBody(sendMessageRequest{
 			ChatID:    t.chatID,
-			Text:      formatTelegramMessage(alert, t.company, t.contact),
+			Text:      formatTelegramMessage(alert),
 			ParseMode: "HTML",
 		}).
 		SetResult(&result).
@@ -75,7 +71,10 @@ func (t *TelegramAlerter) Name() string {
 	return "telegram"
 }
 
-func formatTelegramMessage(alert domain.Alert, company, contact string) string {
+func formatTelegramMessage(alert domain.Alert) string {
+	company := alert.Target.Company
+	contact := alert.Target.Contact
+
 	var header string
 
 	if alert.Type == domain.AlertTypeRecovery {
