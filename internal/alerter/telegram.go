@@ -22,7 +22,7 @@ type TelegramAlerter struct {
 // NewTelegramAlerter creates a new Telegram alerter.
 func NewTelegramAlerter(cfg config.TelegramConfig) *TelegramAlerter {
 	return &TelegramAlerter{
-		client:   resty.New(),
+		client:   resty.New().SetTimeout(10 * time.Second),
 		botToken: cfg.BotToken,
 		chatID:   cfg.ChatID,
 	}
