@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -48,12 +48,12 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}(target)
 	}
 
-	log.Printf("Scheduler started for %d targets", len(s.targets))
+	slog.Info("Scheduler started", "targets", len(s.targets))
 
 	// Wait for all goroutines to finish
 	wg.Wait()
 
-	log.Println("Scheduler stopped")
+	slog.Info("Scheduler stopped")
 	return nil
 }
 
@@ -96,25 +96,31 @@ func (s *Scheduler) checkAndAlert(ctx context.Context, target domain.Target) {
 		if previousStatus != domain.StatusUnhealthy {
 			alert := domain.NewFailureAlert(result)
 			if err := s.alerter.Send(ctx, alert); err != nil {
-				log.Printf("Failed to send failure alert for %s: %v", target.Name, err)
+				slog.Error("Failed to send failure alert", "target", target.Name, "error", err)
 			} else {
-				log.Printf("Sent failure alert for %s", target.Name)
+				slog.Warn("Sent failure alert", "target", target.Name)
 			}
 		} else {
-			log.Printf("Target %s still unhealthy (status: %d, expected: %d)",
-				target.Name, result.ActualStatus, target.ExpectedStatus)
+			slog.Warn("Target still unhealthy",
+				"target", target.Name,
+				"status", result.ActualStatus,
+				"expected", target.ExpectedStatus,
+			)
 		}
 	} else if statusChanged && currentStatus == domain.StatusHealthy {
 		// Send recovery alert
 		alert := domain.NewRecoveryAlert(result)
 		if err := s.alerter.Send(ctx, alert); err != nil {
-			log.Printf("Failed to send recovery alert for %s: %v", target.Name, err)
+			slog.Error("Failed to send recovery alert", "target", target.Name, "error", err)
 		} else {
-			log.Printf("Sent recovery alert for %s", target.Name)
+			slog.Info("Sent recovery alert", "target", target.Name)
 		}
 	} else if result.Success {
-		log.Printf("Target %s healthy (status: %d, latency: %s)",
-			target.Name, result.ActualStatus, result.Latency.Round(time.Millisecond))
+		slog.Debug("Target healthy",
+			"target", target.Name,
+			"status", result.ActualStatus,
+			"latency", result.Latency.Round(time.Millisecond),
+		)
 	}
 }
 
