@@ -94,10 +94,10 @@ func formatTelegramMessage(alert domain.Alert, company, contact string) string {
 
 	details := fmt.Sprintf(""+
 		"🔗 <code>%s</code>\n\n"+
-		"📊 Expected: %d → Actual: %d\n\n"+
-		"⏱ Latency: %s\n\n"+
-		"🔄 Attempts: %d\n\n"+
-		"🕐 %s",
+		"📊 <b>Expected:</b> %d → <b>Actual:</b> %d\n"+
+		"⏱ <b>Latency:</b> %s\n"+
+		"🔄 <b>Attempts:</b> %d\n\n"+
+		"🕐 <i>%s</i>",
 		alert.Target.URL,
 		alert.Target.ExpectedStatus,
 		alert.Result.ActualStatus,
@@ -106,10 +106,10 @@ func formatTelegramMessage(alert domain.Alert, company, contact string) string {
 		alert.Timestamp.Format("2006-01-02 15:04:05 MST"),
 	)
 
-	msg := header + "\n\n" + details
+	msg := header + "\n\n<blockquote>" + details + "</blockquote>"
 
 	if alert.Result.Error != nil && alert.Type == domain.AlertTypeFailure {
-		msg += fmt.Sprintf("\n\n⚠️ <code>%s</code>", alert.Result.Error.Error())
+		msg += fmt.Sprintf("\n\n⚠️ <tg-spoiler>%s</tg-spoiler>", alert.Result.Error.Error())
 	}
 
 	var footer string
