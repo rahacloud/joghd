@@ -29,6 +29,9 @@ go.work.sum
 
 config.toml
 
+# Binary
+joghd
+
 # Editor/IDE
 # .idea/
 # .vscode/
