@@ -76,7 +76,7 @@ func Load(configPath string) (*Config, error) {
 	if err := k.Load(env.Provider(".", env.Opt{
 		Prefix: "JOGHD_",
 		TransformFunc: func(key, value string) (string, any) {
-			return strings.ReplaceAll(strings.ToLower(key), "_", "."), value
+			return strings.ReplaceAll(strings.ToLower(key), "__", "."), value
 		},
 	}), nil); err != nil {
 		return nil, fmt.Errorf("loading env config: %w", err)
