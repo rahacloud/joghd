@@ -3,6 +3,7 @@ package alerter
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/raha-io/joghd/internal/config"
@@ -10,46 +11,56 @@ import (
 	"resty.dev/v3"
 )
 
-const telegramAPIURL = "https://api.telegram.org"
+type sendMessageRequest struct {
+	ChatID    string `json:"chat_id"`
+	Text      string `json:"text"`
+	ParseMode string `json:"parse_mode"`
+}
+
+type telegramResponse struct {
+	OK          bool   `json:"ok"`
+	Description string `json:"description"`
+	ErrorCode   int    `json:"error_code"`
+}
 
 // TelegramAlerter sends alerts via Telegram Bot API.
 type TelegramAlerter struct {
-	client   *resty.Client
-	botToken string
-	chatID   string
+	client *resty.Client
+	chatID string
 }
 
 // NewTelegramAlerter creates a new Telegram alerter.
 func NewTelegramAlerter(cfg config.TelegramConfig) *TelegramAlerter {
+	client := resty.New().
+		SetBaseURL(fmt.Sprintf("https://api.telegram.org/bot%s", cfg.BotToken)).
+		SetTimeout(cfg.Timeout)
+
 	return &TelegramAlerter{
-		client:   resty.New().SetTimeout(cfg.Timeout),
-		botToken: cfg.BotToken,
-		chatID:   cfg.ChatID,
+		client: client,
+		chatID: cfg.ChatID,
 	}
 }
 
 // Send sends an alert via Telegram.
 func (t *TelegramAlerter) Send(ctx context.Context, alert domain.Alert) error {
-	message := formatTelegramMessage(alert)
-
-	url := fmt.Sprintf("%s/bot%s/sendMessage", telegramAPIURL, t.botToken)
+	var result telegramResponse
 
 	resp, err := t.client.R().
 		SetContext(ctx).
-		SetHeader("Content-Type", "application/json").
-		SetBody(map[string]interface{}{
-			"chat_id":    t.chatID,
-			"text":       message,
-			"parse_mode": "Markdown",
+		SetBody(sendMessageRequest{
+			ChatID:    t.chatID,
+			Text:      formatTelegramMessage(alert),
+			ParseMode: "HTML",
 		}).
-		Post(url)
+		SetResult(&result).
+		Post("/sendMessage")
 
 	if err != nil {
 		return fmt.Errorf("sending telegram message: %w", err)
 	}
 
-	if resp.StatusCode() != 200 {
-		return fmt.Errorf("telegram API error: status %d, body: %s", resp.StatusCode(), resp.String())
+	if resp.StatusCode() != http.StatusOK || !result.OK {
+		return fmt.Errorf("telegram API error: status %d, description: %s", result.ErrorCode, result.Description)
 	}
 
 	return nil
@@ -61,29 +72,27 @@ func (t *TelegramAlerter) Name() string {
 }
 
 func formatTelegramMessage(alert domain.Alert) string {
-	icon := "🔴"
+	var header string
+
 	if alert.Type == domain.AlertTypeRecovery {
-		icon = "🟢"
+		header = fmt.Sprintf(""+
+			"🟢 <b>RECOVERED</b>\n"+
+			"<b>%s</b>",
+			alert.Target.Name,
+		)
+	} else {
+		header = fmt.Sprintf(""+
+			"🔴 <b>FAILURE</b>\n"+
+			"<b>%s</b>",
+			alert.Target.Name,
+		)
 	}
 
-	status := "FAILED"
-	if alert.Type == domain.AlertTypeRecovery {
-		status = "RECOVERED"
-	}
-
-	msg := fmt.Sprintf(
-		"%s *%s*: %s\n\n"+
-			"*Target:* %s\n"+
-			"*URL:* `%s`\n"+
-			"*Expected:* %d\n"+
-			"*Actual:* %d\n"+
-			"*Latency:* %s\n"+
-			"*Attempts:* %d\n"+
-			"*Time:* %s",
-		icon,
-		status,
-		alert.Target.Name,
-		alert.Target.Name,
+	details := fmt.Sprintf(""+
+		"🔗 <code>%s</code>\n"+
+		"📊 %d → %d\n"+
+		"⏱ %s  ·  🔄 %d attempt(s)\n"+
+		"🕐 %s",
 		alert.Target.URL,
 		alert.Target.ExpectedStatus,
 		alert.Result.ActualStatus,
@@ -92,8 +101,10 @@ func formatTelegramMessage(alert domain.Alert) string {
 		alert.Timestamp.Format("2006-01-02 15:04:05 MST"),
 	)
 
+	msg := header + "\n\n" + details
+
 	if alert.Result.Error != nil && alert.Type == domain.AlertTypeFailure {
-		msg += fmt.Sprintf("\n*Error:* `%s`", alert.Result.Error.Error())
+		msg += fmt.Sprintf("\n\n⚠️ <code>%s</code>", alert.Result.Error.Error())
 	}
 
 	return msg
