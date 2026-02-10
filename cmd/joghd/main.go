@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
+
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	"github.com/raha-io/joghd/internal/alerter"
 	"github.com/raha-io/joghd/internal/checker"
@@ -34,69 +35,49 @@ func main() {
 		os.Exit(0)
 	}
 
-	cfg, err := config.Load(*configPath)
-	if err != nil {
-		slog.Error("Failed to load config", "error", err)
-		os.Exit(1)
-	}
+	app := fx.New(
+		fx.Supply(config.CLIParams{
+			ConfigPath: *configPath,
+			Mode:       *mode,
+		}),
 
-	setupLogger(cfg.App.LogLevel)
+		fx.WithLogger(func(log *slog.Logger) fxevent.Logger {
+			l := &fxevent.SlogLogger{Logger: log}
+			l.UseLogLevel(slog.LevelDebug)
+			return l
+		}),
 
-	// Command-line mode flag overrides config
-	if *mode != "" {
-		cfg.App.Mode = *mode
-	}
+		fx.Module("config",
+			fx.Provide(config.ProvideConfig),
+		),
 
-	if len(cfg.Targets) == 0 {
-		slog.Error("No targets configured")
-		os.Exit(1)
-	}
+		fx.Module("checker",
+			fx.Provide(
+				fx.Annotate(checker.NewRestyClient, fx.As(new(checker.HTTPClient))),
+				provideChecker,
+			),
+		),
 
-	slog.Info("Joghd starting", "mode", cfg.App.Mode, "targets", len(cfg.Targets))
+		fx.Module("alerter",
+			fx.Provide(provideAlerter),
+		),
 
-	// Create HTTP client
-	httpClient := checker.NewRestyClient(cfg.HTTP)
+		fx.Module("scheduler",
+			fx.Provide(scheduler.New),
+		),
 
-	// Create checker
-	chk := checker.New(
-		checker.WithHTTPClient(httpClient),
-		checker.WithRetryConfig(cfg.Retry),
-		checker.WithConcurrency(cfg.App.Concurrency),
+		fx.Provide(provideLogger),
+		fx.Invoke(validateTargets),
+		fx.Invoke(registerRunner),
 	)
 
-	// Create alerter
-	alt := buildAlerter(cfg)
-
-	// Create context with signal handling
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Handle shutdown signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigCh
-		slog.Info("Received signal, shutting down...", "signal", sig)
-		cancel()
-	}()
-
-	// Run based on mode
-	switch cfg.App.Mode {
-	case "oneshot":
-		exitCode := runOneshot(ctx, chk, alt, cfg.Targets)
-		os.Exit(exitCode)
-	case "continuous":
-		runContinuous(ctx, chk, alt, cfg.Targets)
-	default:
-		slog.Error("Unknown mode", "mode", cfg.App.Mode)
-		os.Exit(1)
-	}
+	app.Run()
 }
 
-func setupLogger(level string) {
+func provideLogger(appCfg config.AppConfig) *slog.Logger {
 	var logLevel slog.Level
 
-	switch strings.ToLower(level) {
+	switch strings.ToLower(appCfg.LogLevel) {
 	case "debug":
 		logLevel = slog.LevelDebug
 	case "warn":
@@ -107,21 +88,91 @@ func setupLogger(level string) {
 		logLevel = slog.LevelInfo
 	}
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevel,
-	})))
+	}))
+	slog.SetDefault(logger)
+
+	return logger
 }
 
-func buildAlerter(cfg *config.Config) alerter.Alerter {
+func provideChecker(client checker.HTTPClient, retryCfg config.RetryConfig, appCfg config.AppConfig) checker.Checker {
+	return checker.New(
+		checker.WithHTTPClient(client),
+		checker.WithRetryConfig(retryCfg),
+		checker.WithConcurrency(appCfg.Concurrency),
+	)
+}
+
+func provideAlerter(cfg config.AlertersConfig) alerter.Alerter {
 	composite := alerter.NewCompositeAlerter()
 
-	if cfg.Alerters.Telegram.Enabled {
-		telegram := alerter.NewTelegramAlerter(cfg.Alerters.Telegram)
+	if cfg.Telegram.Enabled {
+		telegram := alerter.NewTelegramAlerter(cfg.Telegram)
 		composite.Add(telegram)
 		slog.Info("Telegram alerter enabled")
 	}
 
 	return composite
+}
+
+func validateTargets(targets []domain.Target) error {
+	if len(targets) == 0 {
+		return fmt.Errorf("no targets configured")
+	}
+
+	return nil
+}
+
+func registerRunner(
+	lc fx.Lifecycle,
+	shutdowner fx.Shutdowner,
+	appCfg config.AppConfig,
+	chk checker.Checker,
+	alt alerter.Alerter,
+	targets []domain.Target,
+	sched *scheduler.Scheduler,
+) {
+	slog.Info("Joghd starting", "mode", appCfg.Mode, "targets", len(targets))
+
+	switch appCfg.Mode {
+	case "oneshot":
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				go func() {
+					exitCode := runOneshot(context.Background(), chk, alt, targets)
+					shutdowner.Shutdown(fx.ExitCode(exitCode))
+				}()
+
+				return nil
+			},
+		})
+	case "continuous":
+		var cancel context.CancelFunc
+
+		lc.Append(fx.Hook{
+			OnStart: func(_ context.Context) error {
+				ctx, c := context.WithCancel(context.Background())
+				cancel = c
+
+				go func() {
+					slog.Info("Starting continuous monitoring...")
+
+					if err := sched.Start(ctx); err != nil {
+						slog.Error("Scheduler error", "error", err)
+					}
+				}()
+
+				return nil
+			},
+			OnStop: func(_ context.Context) error {
+				slog.Info("Stopping continuous monitoring...")
+				cancel()
+
+				return nil
+			},
+		})
+	}
 }
 
 func runOneshot(ctx context.Context, chk checker.Checker, alt alerter.Alerter, targets []domain.Target) int {
@@ -146,7 +197,6 @@ func runOneshot(ctx context.Context, chk checker.Checker, alt alerter.Alerter, t
 				"error", result.Error,
 			)
 
-			// Send failure alert
 			alert := domain.NewFailureAlert(result)
 			if err := alt.Send(ctx, alert); err != nil {
 				slog.Error("Failed to send alert", "error", err)
@@ -161,13 +211,4 @@ func runOneshot(ctx context.Context, chk checker.Checker, alt alerter.Alerter, t
 
 	slog.Info("Health check completed successfully")
 	return 0
-}
-
-func runContinuous(ctx context.Context, chk checker.Checker, alt alerter.Alerter, targets []domain.Target) {
-	slog.Info("Starting continuous monitoring...")
-
-	sched := scheduler.New(chk, alt, targets)
-	if err := sched.Start(ctx); err != nil {
-		slog.Error("Scheduler error", "error", err)
-	}
 }

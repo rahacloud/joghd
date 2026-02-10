@@ -11,10 +11,19 @@ import (
 	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
 	"github.com/raha-io/joghd/internal/domain"
+	"go.uber.org/fx"
 )
+
+// CLIParams holds command-line parameters supplied before fx starts.
+type CLIParams struct {
+	ConfigPath string
+	Mode       string
+}
 
 // Config holds all application configuration.
 type Config struct {
+	fx.Out
+
 	App      AppConfig       `koanf:"app"`
 	HTTP     HTTPConfig      `koanf:"http"`
 	Retry    RetryConfig     `koanf:"retry"`
@@ -109,6 +118,21 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// ProvideConfig is the fx-compatible provider that loads configuration
+// and returns it by value (required by fx.Out).
+func ProvideConfig(params CLIParams) (Config, error) {
+	cfg, err := Load(params.ConfigPath)
+	if err != nil {
+		return Config{}, err
+	}
+
+	if params.Mode != "" {
+		cfg.App.Mode = params.Mode
+	}
+
+	return *cfg, nil
 }
 
 func validate(cfg *Config) error {
