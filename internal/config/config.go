@@ -33,9 +33,10 @@ type Config struct {
 
 // AppConfig holds application-level settings.
 type AppConfig struct {
-	Mode        string `koanf:"mode"`
-	LogLevel    string `koanf:"log_level"`
-	Concurrency int    `koanf:"concurrency"`
+	Mode               string `koanf:"mode"`
+	LogLevel           string `koanf:"log_level"`
+	Concurrency        int    `koanf:"concurrency"`
+	ReminderMultiplier int    `koanf:"reminder_multiplier"`
 }
 
 // HTTPConfig holds HTTP client settings.
@@ -147,6 +148,10 @@ func validate(cfg *Config) error {
 		if cfg.Alerters.Telegram.ChatID == "" {
 			return fmt.Errorf("telegram.chat_id is required when telegram is enabled")
 		}
+	}
+
+	if cfg.App.ReminderMultiplier < 0 {
+		return fmt.Errorf("app.reminder_multiplier must be non-negative, got %d", cfg.App.ReminderMultiplier)
 	}
 
 	for i, t := range cfg.Targets {

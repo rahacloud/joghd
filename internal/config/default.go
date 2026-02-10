@@ -6,9 +6,10 @@ import "time"
 func Default() Config {
 	return Config{
 		App: AppConfig{
-			Mode:        "oneshot",
-			LogLevel:    "info",
-			Concurrency: 10,
+			Mode:               "oneshot",
+			LogLevel:            "info",
+			Concurrency:        10,
+			ReminderMultiplier: 6,
 		},
 		HTTP: HTTPConfig{
 			Timeout:             10 * time.Second,

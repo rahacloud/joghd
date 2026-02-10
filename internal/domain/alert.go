@@ -8,6 +8,7 @@ type AlertType int
 const (
 	AlertTypeFailure AlertType = iota
 	AlertTypeRecovery
+	AlertTypeReminder
 )
 
 func (t AlertType) String() string {
@@ -16,6 +17,8 @@ func (t AlertType) String() string {
 		return "FAILURE"
 	case AlertTypeRecovery:
 		return "RECOVERY"
+	case AlertTypeReminder:
+		return "REMINDER"
 	default:
 		return "UNKNOWN"
 	}
@@ -66,6 +69,23 @@ func NewFailureAlert(result CheckResult) Alert {
 		Result:    result,
 		Message:   msg,
 		Severity:  SeverityCritical,
+		Timestamp: time.Now(),
+	}
+}
+
+// NewReminderAlert creates a reminder alert for a target that is still down.
+func NewReminderAlert(result CheckResult) Alert {
+	msg := "Health check still failing"
+	if result.Error != nil {
+		msg = result.Error.Error()
+	}
+
+	return Alert{
+		Type:      AlertTypeReminder,
+		Target:    result.Target,
+		Result:    result,
+		Message:   msg,
+		Severity:  SeverityWarning,
 		Timestamp: time.Now(),
 	}
 }

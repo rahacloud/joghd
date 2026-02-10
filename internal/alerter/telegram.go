@@ -11,6 +11,20 @@ import (
 	"resty.dev/v3"
 )
 
+const sadOwlArt = "<pre>" +
+	" ,___,\n" +
+	" (x,x)\n" +
+	" /)_)\n" +
+	"  \"\"\"" +
+	"</pre>"
+
+const happyOwlArt = "<pre>" +
+	" ,___,\n" +
+	" (^,^)\n" +
+	" /)_)\n" +
+	"  \"\"\"" +
+	"</pre>"
+
 type sendMessageRequest struct {
 	ChatID    string `json:"chat_id"`
 	Text      string `json:"text"`
@@ -76,19 +90,30 @@ func formatTelegramMessage(alert domain.Alert) string {
 	contact := alert.Target.Contact
 
 	var header string
+	var owlArt string
 
-	if alert.Type == domain.AlertTypeRecovery {
+	switch alert.Type {
+	case domain.AlertTypeRecovery:
 		header = fmt.Sprintf(""+
 			"🟢 <b>RECOVERED</b>\n"+
 			"<b>%s</b>",
 			alert.Target.Name,
 		)
-	} else {
+		owlArt = happyOwlArt
+	case domain.AlertTypeReminder:
+		header = fmt.Sprintf(""+
+			"🟡 <b>STILL DOWN</b>\n"+
+			"<b>%s</b>",
+			alert.Target.Name,
+		)
+		owlArt = sadOwlArt
+	default:
 		header = fmt.Sprintf(""+
 			"🔴 <b>FAILURE</b>\n"+
 			"<b>%s</b>",
 			alert.Target.Name,
 		)
+		owlArt = sadOwlArt
 	}
 
 	details := fmt.Sprintf(""+
@@ -105,9 +130,9 @@ func formatTelegramMessage(alert domain.Alert) string {
 		alert.Timestamp.Format("2006-01-02 15:04:05 MST"),
 	)
 
-	msg := header + "\n\n<blockquote>" + details + "</blockquote>"
+	msg := header + "\n" + owlArt + "\n<blockquote>" + details + "</blockquote>"
 
-	if alert.Result.Error != nil && alert.Type == domain.AlertTypeFailure {
+	if alert.Result.Error != nil && (alert.Type == domain.AlertTypeFailure || alert.Type == domain.AlertTypeReminder) {
 		msg += fmt.Sprintf("\n\n⚠️ <tg-spoiler>%s</tg-spoiler>", alert.Result.Error.Error())
 	}
 
