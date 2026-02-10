@@ -141,7 +141,10 @@ func registerRunner(
 			OnStart: func(ctx context.Context) error {
 				go func() {
 					exitCode := runOneshot(context.Background(), chk, alt, targets)
-					shutdowner.Shutdown(fx.ExitCode(exitCode))
+
+					if err := shutdowner.Shutdown(fx.ExitCode(exitCode)); err != nil {
+						slog.Error("Failed to trigger shutdown", "error", err)
+					}
 				}()
 
 				return nil
