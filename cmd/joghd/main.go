@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pterm/pterm"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
@@ -24,14 +25,37 @@ var (
 	date    = "unknown"
 )
 
+func printBanner() {
+	owl := ` ,___,
+ (o,o)
+ /)_)
+  """`
+
+	pterm.DefaultCenter.Println(
+		pterm.LightYellow(owl),
+	)
+
+	pterm.DefaultCenter.Println(
+		pterm.Sprintf(
+			"%s %s\n%s %s   %s %s",
+			pterm.LightCyan("version:"), pterm.White(version),
+			pterm.LightCyan("commit:"), pterm.White(commit),
+			pterm.LightCyan("built:"), pterm.White(date),
+		),
+	)
+
+	pterm.Println()
+}
+
 func main() {
 	configPath := flag.String("config", "config.toml", "Path to configuration file")
 	mode := flag.String("mode", "", "Run mode: oneshot or continuous (overrides config)")
 	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
+	printBanner()
+
 	if *showVersion {
-		fmt.Printf("joghd %s (commit: %s, built: %s)\n", version, commit, date)
 		os.Exit(0)
 	}
 
