@@ -16,4 +16,4 @@ test:
 
 # run golangci-lint
 lint:
-    golangci-lint run -c .golangci.yml
+    golangci-lint run
