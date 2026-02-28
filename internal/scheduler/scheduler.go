@@ -49,11 +49,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	var wg sync.WaitGroup
 
 	for _, target := range s.targets {
-		wg.Add(1)
-		go func(t domain.Target) {
-			defer wg.Done()
-			s.runTargetLoop(ctx, t)
-		}(target)
+		wg.Go(func() {
+			s.runTargetLoop(ctx, target)
+		})
 	}
 
 	slog.Info("Scheduler started", "targets", len(s.targets))

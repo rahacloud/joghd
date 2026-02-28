@@ -117,10 +117,7 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 			}
 
 			// Exponential backoff
-			wait = time.Duration(float64(wait) * c.retryConfig.Multiplier)
-			if wait > c.retryConfig.MaxWait {
-				wait = c.retryConfig.MaxWait
-			}
+			wait = min(time.Duration(float64(wait)*c.retryConfig.Multiplier), c.retryConfig.MaxWait)
 		}
 	}
 
@@ -136,25 +133,23 @@ func (c *checker) CheckAll(ctx context.Context, targets []domain.Target) []domai
 	var wg sync.WaitGroup
 
 	for i, target := range targets {
-		wg.Add(1)
-		go func(idx int, t domain.Target) {
-			defer wg.Done()
+		wg.Go(func() {
 
 			// Acquire semaphore
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
 			case <-ctx.Done():
-				results[idx] = domain.CheckResult{
-					Target:    t,
+				results[i] = domain.CheckResult{
+					Target:    target,
 					Error:     ctx.Err(),
 					Timestamp: time.Now(),
 				}
 				return
 			}
 
-			results[idx] = c.Check(ctx, t)
-		}(i, target)
+			results[i] = c.Check(ctx, target)
+		})
 	}
 
 	wg.Wait()
