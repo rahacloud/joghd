@@ -71,6 +71,54 @@ nfpms:
     scripts:
       postinstall: scripts/postinstall.sh
 
+dockers:
+  - id: joghd-amd64
+    image_templates:
+      - "ghcr.io/raha-io/joghd:{{ .Version }}-amd64"
+      - "ghcr.io/raha-io/joghd:latest-amd64"
+    use: buildx
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.source=https://github.com/raha-io/joghd"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.licenses=GPL-3.0"
+    extra_files:
+      - configs/config.example.toml
+  - id: joghd-arm64
+    image_templates:
+      - "ghcr.io/raha-io/joghd:{{ .Version }}-arm64"
+      - "ghcr.io/raha-io/joghd:latest-arm64"
+    use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.source=https://github.com/raha-io/joghd"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.licenses=GPL-3.0"
+    extra_files:
+      - configs/config.example.toml
+
+docker_manifests:
+  - name_template: "ghcr.io/raha-io/joghd:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/raha-io/joghd:{{ .Version }}-amd64"
+      - "ghcr.io/raha-io/joghd:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/raha-io/joghd:latest"
+    image_templates:
+      - "ghcr.io/raha-io/joghd:latest-amd64"
+      - "ghcr.io/raha-io/joghd:latest-arm64"
+
 release:
   github:
     owner: raha-io
