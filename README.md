@@ -1,7 +1,20 @@
 <div align="center">
   <h1>Joghd 🦉</h1>
-  <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/raha-io/joghd/test.yaml?style=for-the-badge&logo=github">
+  <img alt="GitHub Actions Test Workflow Status" src="https://img.shields.io/github/actions/workflow/status/raha-io/joghd/test.yaml?style=for-the-badge&logo=github&label=tests">
+  <img alt="GitHub Actions Release Workflow Status" src="https://img.shields.io/github/actions/workflow/status/raha-io/joghd/release.yaml?style=for-the-badge&logo=github&label=release">
   <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/raha-io/joghd?style=for-the-badge&logo=go">
+  <img alt="GitHub release" src="https://img.shields.io/github/v/release/raha-io/joghd?style=for-the-badge&logo=github&sort=semver">
+  <img alt="GitHub license" src="https://img.shields.io/github/license/raha-io/joghd?style=for-the-badge">
+  <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/raha-io/joghd?style=for-the-badge&logo=git">
+  <img alt="GitHub issues" src="https://img.shields.io/github/issues/raha-io/joghd?style=for-the-badge&logo=github">
+  <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/raha-io/joghd?style=for-the-badge&logo=github">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/raha-io/joghd?style=for-the-badge&logo=github">
+  <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/raha-io/joghd?style=for-the-badge">
+  <img alt="Go Reference" src="https://img.shields.io/badge/go.dev-reference-007d9c?style=for-the-badge&logo=go&logoColor=white">
+  <img alt="Code size" src="https://img.shields.io/github/languages/code-size/raha-io/joghd?style=for-the-badge">
+  <br>
+  <img alt="GHCR latest tag" src="https://ghcr-badge.egpl.dev/raha-io/joghd/latest_tag?trim=major&label=ghcr.io&color=%232496ED">
+  <img alt="GHCR image size" src="https://ghcr-badge.egpl.dev/raha-io/joghd/size?color=%232496ED&tag=latest&label=image+size">
 </div>
 
 URL health check service written in Go. Monitors endpoints, validates HTTP status codes, and sends alerts (Telegram) on failures and recoveries.
