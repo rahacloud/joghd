@@ -9,7 +9,6 @@
   <img alt="GitHub issues" src="https://img.shields.io/github/issues/raha-io/joghd?style=for-the-badge&logo=github">
   <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/raha-io/joghd?style=for-the-badge&logo=github">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/raha-io/joghd?style=for-the-badge&logo=github">
-  <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/raha-io/joghd?style=for-the-badge">
   <img alt="Go Reference" src="https://img.shields.io/badge/go.dev-reference-007d9c?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Code size" src="https://img.shields.io/github/languages/code-size/raha-io/joghd?style=for-the-badge">
   <br>
