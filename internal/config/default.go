@@ -22,11 +22,6 @@ func Default() Config {
 			MaxWait:     10 * time.Second,
 			Multiplier:  2.0,
 		},
-		Alerters: AlertersConfig{
-			Telegram: TelegramConfig{
-				Enabled: false,
-				Timeout: 10 * time.Second,
-			},
-		},
+		Alerters: map[string]AlerterConfig{},
 	}
 }

@@ -32,14 +32,44 @@ max_wait = "10s"
 # Multiplier for exponential backoff
 multiplier = 2.0
 
-[alerters.telegram]
-# Enable Telegram alerts
+# Alerter instances are declared under [alerters.<name>]. The table key
+# becomes the instance name used in logs. You can declare multiple
+# instances of the same type (e.g. one Telegram channel per company).
+#
+# Each instance supports an optional `companies` allow-list. An empty or
+# missing list makes the instance a catch-all that receives every alert.
+# A non-empty list restricts the instance to targets whose `company`
+# matches. Catch-all instances still receive company-matched alerts.
+
+[alerters.raha_io]
+type = "telegram"
 enabled = true
-# Telegram Bot API token (can be overridden via JOGHD_ALERTERS_TELEGRAM_BOT_TOKEN)
+# Telegram Bot API token (can be overridden via JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN)
 bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-# Telegram Chat ID (can be overridden via JOGHD_ALERTERS_TELEGRAM_CHAT_ID)
+# Telegram Chat ID (can be overridden via JOGHD_ALERTERS__RAHA_IO__CHAT_ID)
 chat_id = "-1001234567890"
-# Timeout for Telegram API requests
+timeout = "10s"
+# No `companies` → catch-all, receives every alert.
+
+[alerters.acme_corp]
+type = "telegram"
+enabled = false
+bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+chat_id = "-1009876543210"
+timeout = "10s"
+# Only receives alerts whose target.company is "Acme Corp".
+companies = ["Acme Corp"]
+
+[alerters.team_mattermost]
+type = "mattermost"
+enabled = false
+# Incoming webhook URL from Mattermost (can be overridden via
+# JOGHD_ALERTERS__TEAM_MATTERMOST__WEBHOOK_URL)
+webhook_url = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Optional overrides for the default webhook settings:
+# channel = "#alerts"
+# username = "Joghd"
+# icon_url = "https://example.com/owl.png"
 timeout = "10s"
 
 # Define targets to monitor

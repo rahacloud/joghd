@@ -24,12 +24,20 @@ type CLIParams struct {
 type Config struct {
 	fx.Out
 
-	App      AppConfig       `koanf:"app"`
-	HTTP     HTTPConfig      `koanf:"http"`
-	Retry    RetryConfig     `koanf:"retry"`
-	Alerters AlertersConfig  `koanf:"alerters"`
-	Targets  []domain.Target `koanf:"targets"`
+	App      AppConfig                 `koanf:"app"`
+	HTTP     HTTPConfig                `koanf:"http"`
+	Retry    RetryConfig               `koanf:"retry"`
+	Alerters map[string]AlerterConfig  `koanf:"alerters"`
+	Targets  []domain.Target           `koanf:"targets"`
 }
+
+// AlerterType identifies the concrete alerter implementation to build.
+type AlerterType string
+
+const (
+	AlerterTypeTelegram   AlerterType = "telegram"
+	AlerterTypeMattermost AlerterType = "mattermost"
+)
 
 // AppConfig holds application-level settings.
 type AppConfig struct {
@@ -54,17 +62,25 @@ type RetryConfig struct {
 	Multiplier  float64       `koanf:"multiplier"`
 }
 
-// AlertersConfig holds alerter configurations.
-type AlertersConfig struct {
-	Telegram TelegramConfig `koanf:"telegram"`
-}
+// AlerterConfig holds a single alerter instance configuration. The
+// enclosing map key acts as the instance name (e.g. "raha_io"). Only
+// the fields relevant to the chosen Type need to be set.
+type AlerterConfig struct {
+	Type      AlerterType   `koanf:"type"`
+	Enabled   bool          `koanf:"enabled"`
+	Companies []string      `koanf:"companies"`
+	Timeout   time.Duration `koanf:"timeout"`
 
-// TelegramConfig holds Telegram alerter settings.
-type TelegramConfig struct {
-	Enabled  bool          `koanf:"enabled"`
-	BotToken string        `koanf:"bot_token"`
-	ChatID   string        `koanf:"chat_id"`
-	Timeout  time.Duration `koanf:"timeout"`
+	// Telegram fields.
+	BotToken string `koanf:"bot_token"`
+	ChatID   string `koanf:"chat_id"`
+
+	// Mattermost fields. Channel/Username/IconURL override the webhook
+	// defaults and are all optional.
+	WebhookURL string `koanf:"webhook_url"`
+	Channel    string `koanf:"channel"`
+	Username   string `koanf:"username"`
+	IconURL    string `koanf:"icon_url"`
 }
 
 // Load loads configuration from file and environment variables.
@@ -141,12 +157,26 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("invalid app.mode: %s (must be 'oneshot' or 'continuous')", cfg.App.Mode)
 	}
 
-	if cfg.Alerters.Telegram.Enabled {
-		if cfg.Alerters.Telegram.BotToken == "" {
-			return fmt.Errorf("telegram.bot_token is required when telegram is enabled")
+	for name, a := range cfg.Alerters {
+		if !a.Enabled {
+			continue
 		}
-		if cfg.Alerters.Telegram.ChatID == "" {
-			return fmt.Errorf("telegram.chat_id is required when telegram is enabled")
+		switch a.Type {
+		case AlerterTypeTelegram:
+			if a.BotToken == "" {
+				return fmt.Errorf("alerters.%s.bot_token is required when enabled", name)
+			}
+			if a.ChatID == "" {
+				return fmt.Errorf("alerters.%s.chat_id is required when enabled", name)
+			}
+		case AlerterTypeMattermost:
+			if a.WebhookURL == "" {
+				return fmt.Errorf("alerters.%s.webhook_url is required when enabled", name)
+			}
+		case "":
+			return fmt.Errorf("alerters.%s.type is required", name)
+		default:
+			return fmt.Errorf("alerters.%s.type %q is not supported", name, a.Type)
 		}
 	}
 

@@ -22,7 +22,7 @@ URL health check service written in Go. Monitors endpoints, validates HTTP statu
 
 - **Two modes**: `oneshot` (check once and exit) or `continuous` (persistent monitoring)
 - **Retry with backoff**: Configurable exponential backoff before alerting
-- **Telegram alerts**: Notifications for failures and recoveries
+- **Multiple alert channels**: Telegram and Mattermost, with per-company routing
 - **Extensible**: `Alerter` interface for adding new notification channels
 - **Flexible config**: TOML file + environment variables via koanf
 
@@ -70,11 +70,26 @@ initial_wait = "1s"
 max_wait = "10s"
 multiplier = 2.0
 
-[alerters.telegram]
+# One or more named alerter instances. The table key is the instance
+# name (used in logs). `companies` is an optional allow-list — empty or
+# missing means "catch-all" and receives every alert.
+[alerters.raha_io]
+type = "telegram"
 enabled = true
-# Set via environment variables:
-# JOGHD_ALERTERS_TELEGRAM_BOT_TOKEN
-# JOGHD_ALERTERS_TELEGRAM_CHAT_ID
+# Secrets can be overridden via environment variables:
+# JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN
+# JOGHD_ALERTERS__RAHA_IO__CHAT_ID
+
+[alerters.acme_corp]
+type = "telegram"
+enabled = true
+companies = ["Acme Corp"]  # only receives alerts for matching targets
+
+[alerters.team_mattermost]
+type = "mattermost"
+enabled = true
+webhook_url = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Optional: channel, username, icon_url to override webhook defaults
 
 [[targets]]
 name = "Production API"
@@ -97,9 +112,12 @@ Authorization = "Bearer token"
 
 Environment variables override config file values (prefix: `JOGHD_`):
 
-| Variable                            | Description                          |
-| ----------------------------------- | ------------------------------------ |
-| `JOGHD_APP_MODE`                    | Run mode (`oneshot` or `continuous`) |
-| `JOGHD_HTTP_TIMEOUT`                | Default HTTP timeout                 |
-| `JOGHD_ALERTERS_TELEGRAM_BOT_TOKEN` | Telegram bot token                   |
-| `JOGHD_ALERTERS_TELEGRAM_CHAT_ID`   | Telegram chat ID                     |
+| Variable                                  | Description                                                   |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `JOGHD_APP_MODE`                          | Run mode (`oneshot` or `continuous`)                          |
+| `JOGHD_HTTP_TIMEOUT`                      | Default HTTP timeout                                          |
+| `JOGHD_ALERTERS__<NAME>__BOT_TOKEN`       | Telegram bot token for instance `<name>` (double underscores) |
+| `JOGHD_ALERTERS__<NAME>__CHAT_ID`         | Telegram chat ID for instance `<name>`                        |
+| `JOGHD_ALERTERS__<NAME>__WEBHOOK_URL`     | Mattermost incoming webhook URL for instance `<name>`         |
+
+Env variables use `__` (double underscore) to separate structural levels, matching the koanf provider — e.g. `JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN` overrides `alerters.raha_io.bot_token`.

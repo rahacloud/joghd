@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/raha-io/joghd/internal/config"
 	"github.com/raha-io/joghd/internal/domain"
 	"resty.dev/v3"
 )
@@ -40,18 +39,21 @@ type telegramResponse struct {
 // TelegramAlerter sends alerts via Telegram Bot API.
 type TelegramAlerter struct {
 	client *resty.Client
+	name   string
 	chatID string
 }
 
-// NewTelegramAlerter creates a new Telegram alerter.
-func NewTelegramAlerter(cfg config.TelegramConfig) *TelegramAlerter {
+// NewTelegramAlerter creates a new Telegram alerter instance. The name
+// is an operator-chosen label used in logs and error messages.
+func NewTelegramAlerter(name, botToken, chatID string, timeout time.Duration) *TelegramAlerter {
 	client := resty.New().
-		SetBaseURL(fmt.Sprintf("https://api.telegram.org/bot%s", cfg.BotToken)).
-		SetTimeout(cfg.Timeout)
+		SetBaseURL(fmt.Sprintf("https://api.telegram.org/bot%s", botToken)).
+		SetTimeout(timeout)
 
 	return &TelegramAlerter{
 		client: client,
-		chatID: cfg.ChatID,
+		name:   name,
+		chatID: chatID,
 	}
 }
 
@@ -80,9 +82,9 @@ func (t *TelegramAlerter) Send(ctx context.Context, alert domain.Alert) error {
 	return nil
 }
 
-// Name returns the alerter name.
+// Name returns the alerter name in the form "telegram:<instance>".
 func (t *TelegramAlerter) Name() string {
-	return "telegram"
+	return "telegram:" + t.name
 }
 
 func formatTelegramMessage(alert domain.Alert) string {

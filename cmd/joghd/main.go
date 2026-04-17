@@ -128,16 +128,29 @@ func provideChecker(client checker.HTTPClient, retryCfg config.RetryConfig, appC
 	)
 }
 
-func provideAlerter(cfg config.AlertersConfig) alerter.Alerter {
+func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, error) {
 	composite := alerter.NewCompositeAlerter()
 
-	if cfg.Telegram.Enabled {
-		telegram := alerter.NewTelegramAlerter(cfg.Telegram)
-		composite.Add(telegram)
-		slog.Info("Telegram alerter enabled")
+	for name, a := range alerters {
+		if !a.Enabled {
+			continue
+		}
+
+		var inner alerter.Alerter
+		switch a.Type {
+		case config.AlerterTypeTelegram:
+			inner = alerter.NewTelegramAlerter(name, a.BotToken, a.ChatID, a.Timeout)
+		case config.AlerterTypeMattermost:
+			inner = alerter.NewMattermostAlerter(name, a.WebhookURL, a.Channel, a.Username, a.IconURL, a.Timeout)
+		default:
+			return nil, fmt.Errorf("unsupported alerter type %q for %q", a.Type, name)
+		}
+
+		composite.Add(alerter.NewCompanyFilter(inner, a.Companies))
+		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies)
 	}
 
-	return composite
+	return composite, nil
 }
 
 func validateTargets(targets []domain.Target) error {
