@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/domain"
 )
 
 // CompositeAlerter fans out alerts to multiple alerters.

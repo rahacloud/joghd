@@ -3,7 +3,7 @@ package alerter
 import (
 	"context"
 
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/domain"
 )
 
 // Alerter defines the interface for sending alerts.

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/raha-io/joghd/internal/config"
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/config"
+	"github.com/rahacloud/joghd/internal/domain"
 )
 
 // Checker defines the interface for health checking.

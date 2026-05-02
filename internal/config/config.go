@@ -10,7 +10,7 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/domain"
 	"go.uber.org/fx"
 )
 
@@ -63,7 +63,7 @@ type RetryConfig struct {
 }
 
 // AlerterConfig holds a single alerter instance configuration. The
-// enclosing map key acts as the instance name (e.g. "raha_io"). Only
+// enclosing map key acts as the instance name (e.g. "rahacloud"). Only
 // the fields relevant to the chosen Type need to be set.
 type AlerterConfig struct {
 	Type      AlerterType   `koanf:"type"`

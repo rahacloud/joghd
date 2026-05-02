@@ -41,12 +41,12 @@ multiplier = 2.0
 # A non-empty list restricts the instance to targets whose `company`
 # matches. Catch-all instances still receive company-matched alerts.
 
-[alerters.raha_io]
+[alerters.rahacloud]
 type = "telegram"
 enabled = true
-# Telegram Bot API token (can be overridden via JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN)
+# Telegram Bot API token (can be overridden via JOGHD_ALERTERS__RAHACLOUD__BOT_TOKEN)
 bot_token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-# Telegram Chat ID (can be overridden via JOGHD_ALERTERS__RAHA_IO__CHAT_ID)
+# Telegram Chat ID (can be overridden via JOGHD_ALERTERS__RAHACLOUD__CHAT_ID)
 chat_id = "-1001234567890"
 timeout = "10s"
 # No `companies` → catch-all, receives every alert.

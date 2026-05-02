@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/raha-io/joghd/internal/config"
+	"github.com/rahacloud/joghd/internal/config"
 	"resty.dev/v3"
 )
 

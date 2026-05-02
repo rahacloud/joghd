@@ -3,7 +3,7 @@ package alerter
 import (
 	"context"
 
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/domain"
 )
 
 // CompanyFilter wraps an Alerter and only forwards alerts whose target

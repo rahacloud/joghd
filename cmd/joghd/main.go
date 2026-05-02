@@ -12,11 +12,11 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
-	"github.com/raha-io/joghd/internal/alerter"
-	"github.com/raha-io/joghd/internal/checker"
-	"github.com/raha-io/joghd/internal/config"
-	"github.com/raha-io/joghd/internal/domain"
-	"github.com/raha-io/joghd/internal/scheduler"
+	"github.com/rahacloud/joghd/internal/alerter"
+	"github.com/rahacloud/joghd/internal/checker"
+	"github.com/rahacloud/joghd/internal/config"
+	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/scheduler"
 )
 
 var (

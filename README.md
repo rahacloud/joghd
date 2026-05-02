@@ -1,19 +1,19 @@
 <div align="center">
   <h1>Joghd 🦉</h1>
-  <img alt="GitHub Actions Test Workflow Status" src="https://img.shields.io/github/actions/workflow/status/raha-io/joghd/test.yaml?style=for-the-badge&logo=github&label=tests">
-  <img alt="GitHub Actions Release Workflow Status" src="https://img.shields.io/github/actions/workflow/status/raha-io/joghd/release.yaml?style=for-the-badge&logo=github&label=release">
-  <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/raha-io/joghd?style=for-the-badge&logo=go">
-  <img alt="GitHub release" src="https://img.shields.io/github/v/release/raha-io/joghd?style=for-the-badge&logo=github&sort=semver">
-  <img alt="GitHub license" src="https://img.shields.io/github/license/raha-io/joghd?style=for-the-badge">
-  <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/raha-io/joghd?style=for-the-badge&logo=git">
-  <img alt="GitHub issues" src="https://img.shields.io/github/issues/raha-io/joghd?style=for-the-badge&logo=github">
-  <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/raha-io/joghd?style=for-the-badge&logo=github">
-  <img alt="GitHub stars" src="https://img.shields.io/github/stars/raha-io/joghd?style=for-the-badge&logo=github">
+  <img alt="GitHub Actions Test Workflow Status" src="https://img.shields.io/github/actions/workflow/status/rahacloud/joghd/test.yaml?style=for-the-badge&logo=github&label=tests">
+  <img alt="GitHub Actions Release Workflow Status" src="https://img.shields.io/github/actions/workflow/status/rahacloud/joghd/release.yaml?style=for-the-badge&logo=github&label=release">
+  <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/rahacloud/joghd?style=for-the-badge&logo=go">
+  <img alt="GitHub release" src="https://img.shields.io/github/v/release/rahacloud/joghd?style=for-the-badge&logo=github&sort=semver">
+  <img alt="GitHub license" src="https://img.shields.io/github/license/rahacloud/joghd?style=for-the-badge">
+  <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/rahacloud/joghd?style=for-the-badge&logo=git">
+  <img alt="GitHub issues" src="https://img.shields.io/github/issues/rahacloud/joghd?style=for-the-badge&logo=github">
+  <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/rahacloud/joghd?style=for-the-badge&logo=github">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/rahacloud/joghd?style=for-the-badge&logo=github">
   <img alt="Go Reference" src="https://img.shields.io/badge/go.dev-reference-007d9c?style=for-the-badge&logo=go&logoColor=white">
-  <img alt="Code size" src="https://img.shields.io/github/languages/code-size/raha-io/joghd?style=for-the-badge">
+  <img alt="Code size" src="https://img.shields.io/github/languages/code-size/rahacloud/joghd?style=for-the-badge">
   <br>
-  <img alt="GHCR latest tag" src="https://ghcr-badge.egpl.dev/raha-io/joghd/latest_tag?trim=major&label=ghcr.io&color=%232496ED">
-  <img alt="GHCR image size" src="https://ghcr-badge.egpl.dev/raha-io/joghd/size?color=%232496ED&tag=latest&label=image+size">
+  <img alt="GHCR latest tag" src="https://ghcr-badge.egpl.dev/rahacloud/joghd/latest_tag?trim=major&label=ghcr.io&color=%232496ED">
+  <img alt="GHCR image size" src="https://ghcr-badge.egpl.dev/rahacloud/joghd/size?color=%232496ED&tag=latest&label=image+size">
 </div>
 
 URL health check service written in Go. Monitors endpoints, validates HTTP status codes, and sends alerts (Telegram) on failures and recoveries.
@@ -29,13 +29,13 @@ URL health check service written in Go. Monitors endpoints, validates HTTP statu
 ## Installation
 
 ```bash
-go install github.com/raha-io/joghd/cmd/joghd@latest
+go install github.com/rahacloud/joghd/cmd/joghd@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/raha-io/joghd.git
+git clone https://github.com/rahacloud/joghd.git
 cd joghd
 go build ./cmd/joghd
 ```
@@ -73,12 +73,12 @@ multiplier = 2.0
 # One or more named alerter instances. The table key is the instance
 # name (used in logs). `companies` is an optional allow-list — empty or
 # missing means "catch-all" and receives every alert.
-[alerters.raha_io]
+[alerters.rahacloud]
 type = "telegram"
 enabled = true
 # Secrets can be overridden via environment variables:
-# JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN
-# JOGHD_ALERTERS__RAHA_IO__CHAT_ID
+# JOGHD_ALERTERS__RAHACLOUD__BOT_TOKEN
+# JOGHD_ALERTERS__RAHACLOUD__CHAT_ID
 
 [alerters.acme_corp]
 type = "telegram"
@@ -120,4 +120,4 @@ Environment variables override config file values (prefix: `JOGHD_`):
 | `JOGHD_ALERTERS__<NAME>__CHAT_ID`         | Telegram chat ID for instance `<name>`                        |
 | `JOGHD_ALERTERS__<NAME>__WEBHOOK_URL`     | Mattermost incoming webhook URL for instance `<name>`         |
 
-Env variables use `__` (double underscore) to separate structural levels, matching the koanf provider — e.g. `JOGHD_ALERTERS__RAHA_IO__BOT_TOKEN` overrides `alerters.raha_io.bot_token`.
+Env variables use `__` (double underscore) to separate structural levels, matching the koanf provider — e.g. `JOGHD_ALERTERS__RAHACLOUD__BOT_TOKEN` overrides `alerters.rahacloud.bot_token`.

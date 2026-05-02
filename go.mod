@@ -1,4 +1,4 @@
-module github.com/raha-io/joghd
+module github.com/rahacloud/joghd
 
 go 1.26
 

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/raha-io/joghd/internal/alerter"
-	"github.com/raha-io/joghd/internal/checker"
-	"github.com/raha-io/joghd/internal/config"
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/alerter"
+	"github.com/rahacloud/joghd/internal/checker"
+	"github.com/rahacloud/joghd/internal/config"
+	"github.com/rahacloud/joghd/internal/domain"
 )
 
 type targetState struct {

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/raha-io/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/domain"
 	"resty.dev/v3"
 )
 
