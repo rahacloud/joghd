@@ -10,7 +10,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.5
 	github.com/pterm/pterm v0.12.83
 	go.uber.org/fx v1.24.0
-	resty.dev/v3 v3.0.0-rc.1
+	resty.dev/v3 v3.0.0-rc.2
 )
 
 require (
@@ -33,8 +33,8 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/term v0.44.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 )
