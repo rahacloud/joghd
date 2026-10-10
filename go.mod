@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/knadh/koanf/parsers/toml v0.1.0
-	github.com/knadh/koanf/providers/env/v2 v2.0.1
+	github.com/knadh/koanf/providers/env/v2 v2.0.2
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/providers/structs v1.0.1
 	github.com/knadh/koanf/v2 v2.3.7
