@@ -344,7 +344,9 @@ func TestTickIntervalIsJittered(t *testing.T) {
 		interval := testTarget().Interval
 		synctest.Sleep(50 * interval)
 		cancel()
-		<-done
+		if err := <-done; err != nil {
+			t.Errorf("Start returned %v, want nil", err)
+		}
 
 		gaps := chk.gaps()
 		if len(gaps) < 10 {
