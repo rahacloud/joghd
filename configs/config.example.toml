@@ -24,6 +24,18 @@ timeout = "10s"
 user_agent = "Joghd/1.0"
 # Skip TLS certificate verification (for self-signed certs)
 skip_tls_verification = false
+# Default proxy for every target AND every alerter that does not set its own:
+#   ""                         (default) follow HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+#   "direct"                   no proxy at all, the environment ignored too
+#   "http://host:3128"         an HTTP proxy (also https://)
+#   "socks5h://host:1080"      a SOCKS5 proxy; the only kind tcp:// targets can use
+# Credentials in the URL (socks5h://user:pass@host:1080) are redacted in logs.
+# proxy = "socks5h://127.0.0.1:1080"
+# Fail an https check while its certificate expires within this window, e.g.
+# "336h" for two weeks. 0 (the default) turns the check off. A target can set
+# its own cert_expiry_warning; a negative value there turns it off for that
+# target.
+cert_expiry_warning = "0s"
 
 [retry]
 # Maximum retry attempts before declaring failure
@@ -78,6 +90,9 @@ webhook_url = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
 # username = "Joghd"
 # icon_url = "https://example.com/owl.png"
 timeout = "10s"
+# Optional: this alerter's own proxy (same values as http.proxy). Unset, it
+# inherits http.proxy.
+# proxy = "direct"
 
 # Define targets to monitor
 # Each target is defined as [[targets]]
@@ -95,6 +110,12 @@ interval = "30s"
 # company = "Acme Corp"
 # Optional: contact point shown in alert footer
 # contact = "@oncall-team"
+# Optional: this target's own proxy (same values as http.proxy). Unset, it
+# inherits http.proxy.
+# proxy = "direct"
+# Optional: this target's own certificate expiry window. Unset or 0 inherits
+# http.cert_expiry_warning; a negative value such as "-1s" turns it off.
+# cert_expiry_warning = "720h"
 
 [[targets]]
 name = "Example API with Headers"
@@ -107,3 +128,13 @@ contact = "@oncall-team"
 [targets.headers]
 Authorization = "Bearer your-token-here"
 X-Custom-Header = "custom-value"
+
+# A TCP connect check: passes when a connection to host:port is established
+# within the timeout. expected_status, method and headers do not apply. It goes
+# direct, or through a socks5:// / socks5h:// proxy; an HTTP proxy cannot
+# carry it and is rejected at startup.
+[[targets]]
+name = "Example database port"
+url = "tcp://db.example.com:5432"
+interval = "1m"
+# proxy = "socks5h://127.0.0.1:1080"

@@ -71,6 +71,9 @@ without standing up a monitoring stack:
   routing and a catch-all
 - **Per-target configuration**: method, expected status code, custom headers,
   timeout and check interval
+- **TCP connect checks**: `tcp://host:port` targets watch databases, SSH and anything else that is not HTTP
+- **Proxy support**: route checks and alerts through an HTTP, HTTPS or SOCKS5 proxy, globally or per target and per alerter, or force a target to go `direct`
+- **Certificate expiry warnings**: an HTTPS check fails while its TLS certificate is within a configurable window of expiring, before it breaks the site
 - **Jittered scheduling**: targets sharing an interval do not all probe on the
   same instant
 - **Correlation IDs**: every alert carries a UUIDv7 that appears in the logs
@@ -152,6 +155,10 @@ concurrency = 10
 [http]
 timeout = "10s"
 user_agent = "Joghd/1.0"
+# Default proxy for every target and alerter (optional, see "Proxies").
+# proxy = "socks5h://127.0.0.1:1080"
+# Fail an HTTPS check two weeks before its certificate expires (optional).
+cert_expiry_warning = "336h"
 
 [retry]
 max_attempts = 3
@@ -179,6 +186,8 @@ type = "mattermost"
 enabled = true
 webhook_url = "https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
 # Optional: channel, username, icon_url to override webhook defaults
+# Optional: its own route, instead of inheriting http.proxy
+proxy = "direct"
 
 [[targets]]
 name = "Production API"
@@ -195,7 +204,31 @@ method = "GET"
 interval = "1m"
 [targets.headers]
 Authorization = "Bearer token"
+
+[[targets]]
+name = "Primary database"
+url = "tcp://db.example.com:5432"
+interval = "1m"
+
+[[targets]]
+name = "Intranet portal"
+url = "https://intranet.example.com/"
+proxy = "http://proxy.internal:3128"
+# Self-signed and renewed by hand: no expiry warning for this one.
+cert_expiry_warning = "-1s"
 ```
+
+### Proxies
+
+`http.proxy` is the default route for every target and every alerter. It takes a proxy URL with an `http`, `https`, `socks5` or `socks5h` scheme, the literal `direct` for no proxy at all, or nothing, in which case HTTP traffic follows the standard `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` environment variables. A target or an alerter can set its own `proxy` with the same values; one that sets none inherits `http.proxy`, so a single setting covers both the checks and the alerts. `direct` also ignores the environment variables. Credentials in a proxy URL are accepted and redacted in the logs.
+
+### TCP checks
+
+A target whose `url` is `tcp://host:port` is a TCP connect check: it passes when a connection to `host:port` is established within the target's `timeout`, and it is retried with the same backoff as an HTTP check. `expected_status`, `method` and `headers` do not apply to it, and its alerts say "TCP connect to host:port" instead of comparing status codes. A TCP check goes direct or through a `socks5://` / `socks5h://` proxy, which then also resolves the host name. An HTTP proxy cannot carry a raw TCP connection, so Joghd refuses to start when a `tcp://` target would use one, including one inherited from `http.proxy`; give that target `proxy = "direct"` or a SOCKS5 proxy. TCP checks do not read the proxy environment variables.
+
+### Certificate expiry warnings
+
+`http.cert_expiry_warning` is a duration such as `"336h"` (two weeks). While an HTTPS target's certificate expires within that window, its check fails with `certificate for <host> expires in N days (YYYY-MM-DD)`, which goes out through the usual failure, reminder and recovery alerts. The default `0` turns the check off. A target can set its own `cert_expiry_warning`: `0` or leaving it out inherits the global window, and a negative value such as `"-1s"` turns the check off for that target only. The certificate is the one from the check's own verified TLS handshake, and an expiring certificate is not retried, since retrying cannot renew it.
 
 ## Environment variables
 
@@ -206,6 +239,8 @@ Environment variables override config file values (prefix: `JOGHD_`):
 | `JOGHD_APP__MODE`                     | Run mode (`oneshot` or `continuous`)                          |
 | `JOGHD_APP__LOG_LEVEL`                | Log level (`debug`, `info`, `warn`, `error`)                  |
 | `JOGHD_HTTP__TIMEOUT`                 | Default HTTP timeout                                          |
+| `JOGHD_HTTP__PROXY`                   | Default proxy for checks and alerts (URL or `direct`)         |
+| `JOGHD_HTTP__CERT_EXPIRY_WARNING`     | Certificate expiry window, e.g. `336h` (`0` turns it off)     |
 | `JOGHD_ALERTERS__<NAME>__BOT_TOKEN`   | Telegram bot token for instance `<name>` (double underscores) |
 | `JOGHD_ALERTERS__<NAME>__CHAT_ID`     | Telegram chat ID for instance `<name>`                        |
 | `JOGHD_ALERTERS__<NAME>__WEBHOOK_URL` | Mattermost incoming webhook URL for instance `<name>`         |
@@ -285,7 +320,15 @@ back to healthy.
 
 ### Does it support ICMP ping, TCP ports, or DNS checks?
 
-No — Joghd checks HTTP and HTTPS endpoints only.
+TCP ports, yes: a `tcp://host:port` target is a TCP connect check (see [TCP checks](#tcp-checks)). ICMP ping and DNS checks are not supported.
+
+### Can it warn me before a certificate expires?
+
+Yes. Set `http.cert_expiry_warning`, for example to `"336h"`, and an HTTPS check fails while its certificate is within two weeks of expiring (see [Certificate expiry warnings](#certificate-expiry-warnings)).
+
+### Can it check from behind a proxy, or through one?
+
+Yes. `http.proxy` routes every check and alert through an HTTP, HTTPS or SOCKS5 proxy, and each target and alerter can override it, including with `direct` (see [Proxies](#proxies)).
 
 ### What does the name mean?
 
@@ -310,10 +353,4 @@ GPL-3.0. See [LICENSE](LICENSE).
 
 ---
 
-<sub>**Keywords:** uptime monitoring, uptime monitor, website monitoring, HTTP
-health check, health check service, endpoint monitoring, URL monitoring, status
-code checker, downtime alerts, availability monitoring, site monitoring,
-self-hosted monitoring, Telegram alerts, Telegram bot notifications, Mattermost
-webhook alerts, Go monitoring tool, Golang uptime checker, CLI uptime monitor,
-cron health check, Kubernetes health check, Docker uptime monitor, synthetic
-monitoring, API monitoring.</sub>
+<sub>**Keywords:** uptime monitoring, uptime monitor, website monitoring, HTTP health check, health check service, endpoint monitoring, URL monitoring, status code checker, downtime alerts, availability monitoring, site monitoring, self-hosted monitoring, Telegram alerts, Telegram bot notifications, Mattermost webhook alerts, Go monitoring tool, Golang uptime checker, CLI uptime monitor, cron health check, Kubernetes health check, Docker uptime monitor, synthetic monitoring, API monitoring, TCP port monitoring, SSL certificate expiry monitoring, TLS certificate expiry alerts, SOCKS5 proxy monitoring.</sub>
