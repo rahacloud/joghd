@@ -45,7 +45,7 @@ func inMemoryServer(t *testing.T, cfg config.HTTPConfig, handler http.HandlerFun
 	srv := httptest.NewTestServer(t, handler)
 
 	client := NewRestyClient(cfg)
-	client.client.SetTransport(srv.Client().Transport)
+	client.clientFor("").SetTransport(srv.Client().Transport)
 	t.Cleanup(func() { _ = client.Close() })
 
 	return srv, client
@@ -66,12 +66,12 @@ func TestRestyClientReusesConnections(t *testing.T) {
 
 	const checks = 20
 	for range checks {
-		status, _, err := client.Execute(t.Context(), http.MethodGet, srv.URL, nil, 5*time.Second)
+		resp, err := client.Execute(t.Context(), Request{Method: http.MethodGet, URL: srv.URL, Timeout: 5 * time.Second})
 		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
-		if status != http.StatusOK {
-			t.Fatalf("status = %d, want %d", status, http.StatusOK)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 		}
 	}
 
@@ -94,15 +94,15 @@ func TestRestyClientSkipTLSVerification(t *testing.T) {
 
 	// A per-target timeout is always set in practice, so this is the path
 	// production takes.
-	status, _, err := client.Execute(t.Context(), http.MethodGet, srv.URL, nil, 5*time.Second)
+	resp, err := client.Execute(t.Context(), Request{Method: http.MethodGet, URL: srv.URL, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatalf("with per-target timeout: %v", err)
 	}
-	if status != http.StatusOK {
-		t.Errorf("status = %d, want %d", status, http.StatusOK)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	if _, _, err := client.Execute(t.Context(), http.MethodGet, srv.URL, nil, 0); err != nil {
+	if _, err := client.Execute(t.Context(), Request{Method: http.MethodGet, URL: srv.URL}); err != nil {
 		t.Errorf("without per-target timeout: %v", err)
 	}
 }
@@ -121,7 +121,7 @@ func TestRestyClientPerRequestTimeout(t *testing.T) {
 			})
 
 		start := time.Now()
-		if _, _, err := client.Execute(t.Context(), http.MethodGet, srv.URL, nil, 100*time.Millisecond); err == nil {
+		if _, err := client.Execute(t.Context(), Request{Method: http.MethodGet, URL: srv.URL, Timeout: 100 * time.Millisecond}); err == nil {
 			t.Fatal("expected a timeout error, got nil")
 		}
 
@@ -144,8 +144,12 @@ func TestRestyClientSendsHeaders(t *testing.T) {
 	client := NewRestyClient(config.HTTPConfig{Timeout: 5 * time.Second, UserAgent: "Joghd/test"})
 	t.Cleanup(func() { _ = client.Close() })
 
-	if _, _, err := client.Execute(t.Context(), http.MethodGet, srv.URL,
-		map[string]string{"Authorization": "Bearer token"}, 5*time.Second); err != nil {
+	if _, err := client.Execute(t.Context(), Request{
+		Method:  http.MethodGet,
+		URL:     srv.URL,
+		Headers: map[string]string{"Authorization": "Bearer token"},
+		Timeout: 5 * time.Second,
+	}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 
@@ -168,7 +172,7 @@ func TestRestyClientContextCancellation(t *testing.T) {
 
 		errc := make(chan error, 1)
 		go func() {
-			_, _, err := client.Execute(ctx, http.MethodGet, srv.URL, nil, time.Minute)
+			_, err := client.Execute(ctx, Request{Method: http.MethodGet, URL: srv.URL, Timeout: time.Minute})
 			errc <- err
 		}()
 
@@ -180,4 +184,71 @@ func TestRestyClientContextCancellation(t *testing.T) {
 			t.Error("expected an error after cancellation, got nil")
 		}
 	})
+}
+
+// forwardProxy is a minimal HTTP forward proxy: it answers every request it
+// receives for an absolute URL itself and records the hosts it was asked for.
+// Targets under the .invalid TLD cannot resolve, so a request only succeeds
+// if it really went through the proxy.
+func forwardProxy(t *testing.T) (*httptest.Server, *atomic.Value) {
+	t.Helper()
+
+	var host atomic.Value
+
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !r.URL.IsAbs() {
+			http.Error(w, "not a proxy request", http.StatusBadRequest)
+			return
+		}
+
+		host.Store(r.URL.Host)
+		okJSONHandler(w, r)
+	}))
+	srv.Start()
+
+	return srv, &host
+}
+
+func TestRestyClientRoutesThroughPerRequestProxy(t *testing.T) {
+	proxySrv, host := forwardProxy(t)
+
+	client := NewRestyClient(config.HTTPConfig{Timeout: 5 * time.Second, UserAgent: "Joghd/test"})
+	t.Cleanup(func() { _ = client.Close() })
+
+	resp, err := client.Execute(t.Context(), Request{
+		Method:  http.MethodGet,
+		URL:     "http://target.invalid/health",
+		Timeout: 5 * time.Second,
+		Proxy:   proxySrv.URL,
+	})
+	if err != nil {
+		t.Fatalf("Execute through the proxy: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got, _ := host.Load().(string); got != "target.invalid" {
+		t.Errorf("proxy saw host %q, want %q", got, "target.invalid")
+	}
+}
+
+// Targets that share a proxy setting must share a client and its connection
+// pool; a different setting gets its own client, and Close reaches them all.
+func TestRestyClientOneClientPerProxySetting(t *testing.T) {
+	client := NewRestyClient(config.HTTPConfig{Timeout: 5 * time.Second, UserAgent: "Joghd/test"})
+
+	a := client.clientFor("socks5h://127.0.0.1:1080")
+	if b := client.clientFor("socks5h://127.0.0.1:1080"); a != b {
+		t.Error("the same proxy setting built two clients")
+	}
+	if c := client.clientFor("direct"); a == c {
+		t.Error("different proxy settings share one client")
+	}
+	if c := client.clientFor("direct"); c.IsProxySet() {
+		t.Error("the direct client has a proxy set")
+	}
+
+	if err := client.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
 }

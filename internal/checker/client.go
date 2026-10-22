@@ -3,12 +3,15 @@ package checker
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"resty.dev/v3"
 
 	"github.com/rahacloud/joghd/internal/config"
+	"github.com/rahacloud/joghd/internal/proxy"
 )
 
 // maxDrainBytes caps how much of an unused response body is read back before
@@ -16,65 +19,119 @@ import (
 // capping it stops an oversized body from wasting bandwidth.
 const maxDrainBytes = 64 << 10
 
-// HTTPClient abstracts HTTP operations for testability.
-type HTTPClient interface {
-	Execute(ctx context.Context, method, url string, headers map[string]string, timeout time.Duration) (statusCode int, latency time.Duration, err error)
+// Request describes one HTTP probe.
+type Request struct {
+	Method  string
+	URL     string
+	Headers map[string]string
+	// Timeout overrides the client-wide timeout when positive.
+	Timeout time.Duration
+	// Proxy is the probe's proxy setting: a proxy URL, [proxy.Direct], or
+	// empty for the environment-driven default.
+	Proxy string
 }
 
-// RestyClient wraps resty for HTTP operations.
+// Response is what a probe observed. Latency is set even when the request
+// failed.
+type Response struct {
+	StatusCode int
+	Latency    time.Duration
+}
+
+// HTTPClient abstracts HTTP operations for testability.
+type HTTPClient interface {
+	Execute(ctx context.Context, req Request) (Response, error)
+}
+
+// RestyClient wraps resty for HTTP operations. It keeps one resty client per
+// distinct proxy setting, so targets that share a proxy also share a
+// connection pool.
 type RestyClient struct {
-	client *resty.Client
+	cfg config.HTTPConfig
+
+	mu      sync.Mutex
+	clients map[string]*resty.Client
 }
 
 // NewRestyClient creates a new HTTP client with the given configuration.
 func NewRestyClient(cfg config.HTTPConfig) *RestyClient {
-	client := resty.New().
-		SetTimeout(cfg.Timeout).
-		SetHeader("User-Agent", cfg.UserAgent)
+	return &RestyClient{
+		cfg:     cfg,
+		clients: make(map[string]*resty.Client),
+	}
+}
 
-	if cfg.SkipTLSVerification {
+// clientFor returns the resty client for a proxy setting, building it on
+// first use.
+func (c *RestyClient) clientFor(setting string) *resty.Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if client, ok := c.clients[setting]; ok {
+		return client
+	}
+
+	client := resty.New().
+		SetTimeout(c.cfg.Timeout).
+		SetHeader("User-Agent", c.cfg.UserAgent)
+
+	if c.cfg.SkipTLSVerification {
 		client.SetTLSClientConfig(&tls.Config{
 			//nolint:gosec // explicitly opted into via http.skip_tls_verification
 			InsecureSkipVerify: true,
 		})
 	}
 
-	return &RestyClient{client: client}
+	proxy.Apply(client, setting)
+
+	c.clients[setting] = client
+
+	return client
 }
 
-// Execute performs an HTTP request and returns the status code, latency, and any error.
-func (c *RestyClient) Execute(ctx context.Context, method, url string, headers map[string]string, timeout time.Duration) (int, time.Duration, error) {
-	req := c.client.R().SetContext(ctx)
+// Execute performs an HTTP request and reports the status code and latency.
+func (c *RestyClient) Execute(ctx context.Context, req Request) (Response, error) {
+	r := c.clientFor(req.Proxy).R().SetContext(ctx)
 
 	// Override the client-wide timeout for this request only. Building a
 	// separate client per request would drop the TLS and header settings
 	// configured above and leak its connection pool.
-	if timeout > 0 {
-		req.SetTimeout(timeout)
+	if req.Timeout > 0 {
+		r.SetTimeout(req.Timeout)
 	}
 
-	for k, v := range headers {
-		req.SetHeader(k, v)
+	for k, v := range req.Headers {
+		r.SetHeader(k, v)
 	}
 
 	start := time.Now()
-	resp, err := req.Execute(method, url)
-	latency := time.Since(start)
+	resp, err := r.Execute(req.Method, req.URL)
+	out := Response{Latency: time.Since(start)}
 
 	// Only the status code is of interest, and resty leaves the body open
 	// when it has nowhere to decode it, so release it here.
 	releaseBody(resp)
 
 	if err != nil {
-		return 0, latency, err
+		return out, err
 	}
 
-	return resp.StatusCode(), latency, nil
+	out.StatusCode = resp.StatusCode()
+
+	return out, nil
 }
 
-// Close releases the client's idle connections.
+// Close releases the idle connections of every client built so far.
 func (c *RestyClient) Close() error {
-	return c.client.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errs []error
+	for _, client := range c.clients {
+		errs = append(errs, client.Close())
+	}
+
+	return errors.Join(errs...)
 }
 
 // releaseBody drains and closes a response body so its connection can be

@@ -53,8 +53,8 @@ type MattermostAlerter struct {
 // NewMattermostAlerter creates a new Mattermost alerter instance. The
 // channel/username/iconURL arguments override the webhook defaults and
 // may be empty.
-func NewMattermostAlerter(name, webhookURL, channel, username, iconURL string, timeout time.Duration) *MattermostAlerter {
-	client := withJSONv2(resty.New().SetTimeout(timeout))
+func NewMattermostAlerter(name, webhookURL, channel, username, iconURL string, timeout time.Duration, opts ...Option) *MattermostAlerter {
+	client := applyOptions(withJSONv2(resty.New().SetTimeout(timeout)), opts)
 
 	return &MattermostAlerter{
 		client:     client,

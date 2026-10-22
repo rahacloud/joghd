@@ -31,7 +31,7 @@ type response struct {
 	err     error
 }
 
-func (f *fakeClient) Execute(ctx context.Context, _, _ string, _ map[string]string, _ time.Duration) (int, time.Duration, error) {
+func (f *fakeClient) Execute(ctx context.Context, _ Request) (Response, error) {
 	cur := f.inFlight.Add(1)
 	for {
 		seen := f.maxSeen.Load()
@@ -46,7 +46,7 @@ func (f *fakeClient) Execute(ctx context.Context, _, _ string, _ map[string]stri
 		select {
 		case <-f.block:
 		case <-ctx.Done():
-			return 0, 0, ctx.Err()
+			return Response{}, ctx.Err()
 		}
 	}
 
@@ -57,7 +57,7 @@ func (f *fakeClient) Execute(ctx context.Context, _, _ string, _ map[string]stri
 
 	r := f.responses[min(f.calls-1, len(f.responses)-1)]
 
-	return r.status, r.latency, r.err
+	return Response{StatusCode: r.status, Latency: r.latency}, r.err
 }
 
 func fastRetry(attempts int) config.RetryConfig {

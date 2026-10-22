@@ -139,6 +139,30 @@ func TestTelegramAlerterSuccess(t *testing.T) {
 	}
 }
 
+// WithProxy must reach the client the alerter sends through. The Bot API host
+// is under .invalid, so the send only succeeds via the proxy.
+func TestTelegramAlerterSendsThroughProxy(t *testing.T) {
+	var proxiedHost atomic.Value
+
+	proxySrv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxiedHost.Store(r.URL.Host)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	proxySrv.Start()
+
+	a := NewTelegramAlerter("raha", "token", "-100", 5*time.Second, WithProxy(proxySrv.URL))
+	a.client.SetBaseURL("http://api.telegram.invalid/bottoken")
+
+	if err := a.Send(t.Context(), alertFor("Acme")); err != nil {
+		t.Fatalf("Send through the proxy: %v", err)
+	}
+	if got, _ := proxiedHost.Load().(string); got != "api.telegram.invalid" {
+		t.Errorf("proxy saw host %q, want %q", got, "api.telegram.invalid")
+	}
+}
+
 // The error used to report "status 0" with an empty description because resty
 // never decoded the failure response.
 func TestTelegramAlerterReportsAPIErrors(t *testing.T) {

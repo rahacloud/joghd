@@ -22,6 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/proxy"
 )
 
 // EnvPrefix is stripped from environment variable names before they are
@@ -117,6 +118,11 @@ type HTTPConfig struct {
 	Timeout             time.Duration `koanf:"timeout"`
 	UserAgent           string        `koanf:"user_agent"`
 	SkipTLSVerification bool          `koanf:"skip_tls_verification"`
+
+	// Proxy is the default proxy for every target and alerter that does not
+	// set its own: a proxy URL (http, https, socks5, socks5h), the literal
+	// "direct", or empty to follow the HTTP_PROXY/HTTPS_PROXY environment.
+	Proxy string `koanf:"proxy"`
 }
 
 // RetryConfig holds retry behavior settings.
@@ -135,6 +141,10 @@ type AlerterConfig struct {
 	Enabled   bool          `koanf:"enabled"`
 	Companies []string      `koanf:"companies"`
 	Timeout   time.Duration `koanf:"timeout"`
+
+	// Proxy routes this alerter's requests through a proxy, with the same
+	// values as http.proxy. Empty inherits http.proxy.
+	Proxy string `koanf:"proxy"`
 
 	// Telegram fields.
 	BotToken string `koanf:"bot_token"`
@@ -280,12 +290,21 @@ func applyDefaults(cfg *Config) {
 	for name, a := range cfg.Alerters {
 		if a.Timeout == 0 {
 			a.Timeout = DefaultAlerterTimeout
-			cfg.Alerters[name] = a
 		}
+		// One http.proxy covers the alerts as well as the checks; an alerter
+		// only needs its own when the two must take different routes.
+		if a.Proxy == "" {
+			a.Proxy = cfg.HTTP.Proxy
+		}
+		cfg.Alerters[name] = a
 	}
 
 	for i := range cfg.Targets {
 		t := &cfg.Targets[i]
+
+		if t.Proxy == "" {
+			t.Proxy = cfg.HTTP.Proxy
+		}
 
 		if t.Method == "" {
 			t.Method = DefaultTargetMethod
@@ -323,6 +342,10 @@ func validate(cfg *Config) error {
 
 	if cfg.HTTP.Timeout <= 0 {
 		return fmt.Errorf("http.timeout must be positive, got %s", cfg.HTTP.Timeout)
+	}
+
+	if err := proxy.Validate(cfg.HTTP.Proxy); err != nil {
+		return fmt.Errorf("http.proxy: %w", err)
 	}
 
 	if err := validateRetry(cfg.Retry); err != nil {
@@ -392,6 +415,10 @@ func validateAlerters(alerters map[string]AlerterConfig) error {
 		if a.Timeout <= 0 {
 			return fmt.Errorf("alerters.%s.timeout must be positive, got %s", name, a.Timeout)
 		}
+
+		if err := proxy.Validate(a.Proxy); err != nil {
+			return fmt.Errorf("alerters.%s.proxy: %w", name, err)
+		}
 	}
 
 	return nil
@@ -438,6 +465,9 @@ func validateTargets(targets []domain.Target) error {
 		}
 		if t.ExpectedStatus < 100 || t.ExpectedStatus > 599 {
 			return fmt.Errorf("target[%d] (%s): expected_status %d is not a valid HTTP status code", i, t.Name, t.ExpectedStatus)
+		}
+		if err := proxy.Validate(t.Proxy); err != nil {
+			return fmt.Errorf("target[%d] (%s): proxy: %w", i, t.Name, err)
 		}
 	}
 

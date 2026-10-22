@@ -311,8 +311,8 @@ func TestProvideChecker(t *testing.T) {
 // stubHTTPClient satisfies checker.HTTPClient without touching the network.
 type stubHTTPClient struct{}
 
-func (stubHTTPClient) Execute(_ context.Context, _, _ string, _ map[string]string, _ time.Duration) (int, time.Duration, error) {
-	return 200, time.Millisecond, nil
+func (stubHTTPClient) Execute(_ context.Context, _ checker.Request) (checker.Response, error) {
+	return checker.Response{StatusCode: 200, Latency: time.Millisecond}, nil
 }
 
 var _ checker.HTTPClient = stubHTTPClient{}

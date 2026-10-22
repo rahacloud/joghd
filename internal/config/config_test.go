@@ -95,3 +95,59 @@ func TestLoadMissingFile(t *testing.T) {
 		t.Error("expected an error for a missing config file, got nil")
 	}
 }
+
+// One http.proxy has to cover both the checks and the alerts, while a target
+// or an alerter can still take its own route.
+func TestLoadProxyInheritance(t *testing.T) {
+	cfg, err := Load(writeConfig(t, `
+[app]
+mode = "oneshot"
+
+[http]
+proxy = "socks5h://127.0.0.1:2081"
+
+[alerters.inherits]
+type = "telegram"
+enabled = true
+bot_token = "t"
+chat_id = "-100"
+
+[alerters.own]
+type = "telegram"
+enabled = true
+bot_token = "t"
+chat_id = "-100"
+proxy = "direct"
+
+[[targets]]
+name = "inherits"
+url = "https://api.example.com/health"
+
+[[targets]]
+name = "own"
+url = "https://intranet.example.com/health"
+proxy = "http://127.0.0.1:3128"
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	want := map[string]string{
+		"alerter inherits": "socks5h://127.0.0.1:2081",
+		"alerter own":      "direct",
+		"target inherits":  "socks5h://127.0.0.1:2081",
+		"target own":       "http://127.0.0.1:3128",
+	}
+	got := map[string]string{
+		"alerter inherits": cfg.Alerters["inherits"].Proxy,
+		"alerter own":      cfg.Alerters["own"].Proxy,
+		"target inherits":  cfg.Targets[0].Proxy,
+		"target own":       cfg.Targets[1].Proxy,
+	}
+
+	for k, w := range want {
+		if got[k] != w {
+			t.Errorf("%s proxy = %q, want %q", k, got[k], w)
+		}
+	}
+}

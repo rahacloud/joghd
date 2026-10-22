@@ -120,6 +120,21 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			body:    minimalConfig + "\n[alerters.raha]\ntype = \"telegram\"\nenabled = true\nbot_token = \"t\"\nchat_id = \"-100\"\ntimeout = \"-1s\"\n",
 			wantErr: "timeout must be positive",
 		},
+		{
+			name:    "unsupported http proxy scheme",
+			body:    "[app]\nmode = \"oneshot\"\n[http]\nproxy = \"ftp://127.0.0.1:21\"\n" + targetsBlock,
+			wantErr: "http.proxy",
+		},
+		{
+			name:    "target proxy without a scheme",
+			body:    "[app]\nmode = \"oneshot\"\n[[targets]]\nname = \"api\"\nurl = \"https://api.example.com\"\nproxy = \"127.0.0.1:1080\"\n",
+			wantErr: "target[0] (api): proxy",
+		},
+		{
+			name:    "alerter proxy without a host",
+			body:    minimalConfig + "\n[alerters.raha]\ntype = \"telegram\"\nenabled = true\nbot_token = \"t\"\nchat_id = \"-100\"\nproxy = \"socks5://\"\n",
+			wantErr: "alerters.raha.proxy",
+		},
 	}
 
 	for _, tc := range tests {

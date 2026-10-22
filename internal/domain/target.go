@@ -16,6 +16,10 @@ type Target struct {
 	Headers        map[string]string `koanf:"headers"`
 	Company        string            `koanf:"company"`
 	Contact        string            `koanf:"contact"`
+
+	// Proxy routes this target's checks through a proxy: a proxy URL, the
+	// literal "direct" for none at all, or empty to inherit http.proxy.
+	Proxy string `koanf:"proxy"`
 }
 
 // CheckResult represents the outcome of a health check.

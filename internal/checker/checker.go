@@ -96,16 +96,17 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 		default:
 		}
 
-		statusCode, latency, err := c.httpClient.Execute(
-			ctx,
-			target.Method,
-			target.URL,
-			target.Headers,
-			target.Timeout,
-		)
+		resp, err := c.httpClient.Execute(ctx, Request{
+			Method:  target.Method,
+			URL:     target.URL,
+			Headers: target.Headers,
+			Timeout: target.Timeout,
+			Proxy:   target.Proxy,
+		})
+		statusCode := resp.StatusCode
 
 		result.Attempts = attempt
-		result.Latency = latency
+		result.Latency = resp.Latency
 		result.ActualStatus = statusCode
 
 		if err == nil && statusCode == target.ExpectedStatus {

@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 
 	"github.com/pterm/pterm"
@@ -28,6 +29,7 @@ import (
 	"github.com/rahacloud/joghd/internal/checker"
 	"github.com/rahacloud/joghd/internal/config"
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/proxy"
 	"github.com/rahacloud/joghd/internal/scheduler"
 )
 
@@ -132,6 +134,8 @@ func provideLogger(appCfg config.AppConfig) *slog.Logger {
 func provideHTTPClient(lc fx.Lifecycle, httpCfg config.HTTPConfig) checker.HTTPClient {
 	client := checker.NewRestyClient(httpCfg)
 
+	slog.Info("Default proxy for checks and alerts", "proxy", proxyLabel(httpCfg.Proxy))
+
 	lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			return client.Close()
@@ -162,9 +166,10 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 		var inner alerter.Alerter
 		switch a.Type {
 		case config.AlerterTypeTelegram:
-			inner = alerter.NewTelegramAlerter(name, a.BotToken, a.ChatID, a.Timeout)
+			inner = alerter.NewTelegramAlerter(name, a.BotToken, a.ChatID, a.Timeout, alerter.WithProxy(a.Proxy))
 		case config.AlerterTypeMattermost:
-			inner = alerter.NewMattermostAlerter(name, a.WebhookURL, a.Channel, a.Username, a.IconURL, a.Timeout)
+			inner = alerter.NewMattermostAlerter(name, a.WebhookURL, a.Channel, a.Username, a.IconURL, a.Timeout,
+				alerter.WithProxy(a.Proxy))
 		default:
 			return nil, fmt.Errorf("unsupported alerter type %q for %q", a.Type, name)
 		}
@@ -172,7 +177,7 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 		composite.Add(alerter.NewCompanyFilter(inner, a.Companies))
 		enabled++
 
-		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies)
+		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies, "proxy", proxyLabel(a.Proxy))
 	}
 
 	if enabled == 0 {
@@ -180,6 +185,24 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 	}
 
 	return composite, nil
+}
+
+// proxyLabel renders a proxy setting for the logs, with any credentials in a
+// proxy URL redacted.
+func proxyLabel(setting string) string {
+	switch setting {
+	case "":
+		return "environment"
+	case proxy.Direct:
+		return proxy.Direct
+	}
+
+	u, err := url.Parse(setting)
+	if err != nil {
+		return "invalid"
+	}
+
+	return u.Redacted()
 }
 
 func registerRunner(
