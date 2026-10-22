@@ -131,16 +131,22 @@ func formatTelegramMessage(alert domain.Alert) string {
 		owlArt = sadOwlArt
 	}
 
+	// A TCP connect has no status codes to compare.
+	outcome := fmt.Sprintf("📊 <b>Expected:</b> %d → <b>Actual:</b> %d",
+		alert.Target.ExpectedStatus, alert.Result.ActualStatus)
+	if alert.Target.IsTCP() {
+		outcome = fmt.Sprintf("🔌 <b>TCP connect</b> to <code>%s</code>", alert.Target.TCPAddress())
+	}
+
 	details := fmt.Sprintf(""+
 		"🔗 <code>%s</code>\n\n"+
-		"📊 <b>Expected:</b> %d → <b>Actual:</b> %d\n"+
+		"%s\n"+
 		"⏱ <b>Latency:</b> %s\n"+
 		"🔄 <b>Attempts:</b> %d\n\n"+
 		"🕐 <i>%s</i>\n"+
 		"🆔 <code>%s</code>",
 		alert.Target.URL,
-		alert.Target.ExpectedStatus,
-		alert.Result.ActualStatus,
+		outcome,
 		alert.Result.Latency.Round(time.Millisecond),
 		alert.Result.Attempts,
 		alert.Timestamp.Format("2006-01-02 15:04:05 MST"),

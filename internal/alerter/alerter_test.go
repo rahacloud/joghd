@@ -326,3 +326,41 @@ func TestBuildMattermostAttachment(t *testing.T) {
 		})
 	}
 }
+
+func tcpFailure() domain.Alert {
+	return domain.NewFailureAlert(domain.CheckResult{
+		Target:   domain.Target{Name: "db", URL: "tcp://db.example.com:5432", ExpectedStatus: 200},
+		Error:    errors.New("connecting to db.example.com:5432: connection refused"),
+		Latency:  3 * time.Millisecond,
+		Attempts: 3,
+	})
+}
+
+// A TCP connect has no status codes, so "Expected 200 → Actual 0" would only
+// mislead whoever is on call.
+func TestAlertsDescribeTCPChecks(t *testing.T) {
+	alert := tcpFailure()
+
+	msg := formatTelegramMessage(alert)
+	if !strings.Contains(msg, "TCP connect</b> to <code>db.example.com:5432</code>") {
+		t.Errorf("telegram message does not describe the TCP connect:\n%s", msg)
+	}
+	if strings.Contains(msg, "Expected") {
+		t.Errorf("telegram message shows HTTP status codes for a TCP check:\n%s", msg)
+	}
+	if http := formatTelegramMessage(alertFor("Acme")); !strings.Contains(http, "<b>Expected:</b> 200 → <b>Actual:</b> 500") {
+		t.Errorf("the HTTP format changed:\n%s", http)
+	}
+
+	att := buildMattermostAttachment(alert)
+	var titles []string
+	for _, f := range att.Fields {
+		titles = append(titles, f.Title)
+		if f.Title == "Check" && !strings.Contains(f.Value, "db.example.com:5432") {
+			t.Errorf("Check field = %q, want the dialed address", f.Value)
+		}
+	}
+	if got := strings.Join(titles, ","); got != "URL,Check,Latency,Attempts" {
+		t.Errorf("mattermost fields = %s, want URL,Check,Latency,Attempts", got)
+	}
+}

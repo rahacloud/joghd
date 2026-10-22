@@ -1,9 +1,11 @@
-// Package checker performs the HTTP health checks themselves.
+// Package checker performs the health checks themselves.
 //
 // [Checker] probes one target or a whole set of them, retrying with capped
-// exponential backoff and bounding how many probes run at once. [HTTPClient]
-// abstracts the transport so a caller can substitute one in tests;
-// [RestyClient] is the production implementation.
+// exponential backoff and bounding how many probes run at once. An http or
+// https target is an HTTP request through [HTTPClient] ([RestyClient] in
+// production); a tcp://host:port target is a TCP connect through [TCPDialer]
+// ([NetDialer] in production). Both are interfaces so tests can substitute
+// them.
 package checker
 
 import (
@@ -25,6 +27,7 @@ type Checker interface {
 // checker implements the Checker interface.
 type checker struct {
 	httpClient  HTTPClient
+	tcpDialer   TCPDialer
 	retryConfig config.RetryConfig
 	concurrency int
 }
@@ -36,6 +39,13 @@ type Option func(*checker)
 func WithHTTPClient(client HTTPClient) Option {
 	return func(c *checker) {
 		c.httpClient = client
+	}
+}
+
+// WithTCPDialer sets a custom dialer for tcp:// targets.
+func WithTCPDialer(dialer TCPDialer) Option {
+	return func(c *checker) {
+		c.tcpDialer = dialer
 	}
 }
 
@@ -56,6 +66,7 @@ func WithConcurrency(n int) Option {
 // New creates a new Checker with the given options.
 func New(opts ...Option) Checker {
 	c := &checker{
+		tcpDialer:   NetDialer{},
 		retryConfig: config.DefaultRetry(),
 		concurrency: config.DefaultConcurrency,
 	}
@@ -96,20 +107,13 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 		default:
 		}
 
-		resp, err := c.httpClient.Execute(ctx, Request{
-			Method:  target.Method,
-			URL:     target.URL,
-			Headers: target.Headers,
-			Timeout: target.Timeout,
-			Proxy:   target.Proxy,
-		})
-		statusCode := resp.StatusCode
+		statusCode, latency, err := c.probe(ctx, target)
 
 		result.Attempts = attempt
-		result.Latency = resp.Latency
+		result.Latency = latency
 		result.ActualStatus = statusCode
 
-		if err == nil && statusCode == target.ExpectedStatus {
+		if err == nil {
 			result.Success = true
 			// Discard any error recorded by an earlier attempt so a
 			// successful result never carries a stale failure.
@@ -118,11 +122,7 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 			return result
 		}
 
-		if err != nil {
-			result.Error = err
-		} else {
-			result.Error = fmt.Errorf("status mismatch: expected %d, got %d", target.ExpectedStatus, statusCode)
-		}
+		result.Error = err
 
 		// Don't wait after the last attempt
 		if attempt < c.retryConfig.MaxAttempts {
@@ -139,6 +139,33 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 	}
 
 	return result
+}
+
+// probe runs one attempt against target and returns the HTTP status (zero for
+// a TCP check), the latency, and nil only if the attempt passed.
+func (c *checker) probe(ctx context.Context, target domain.Target) (int, time.Duration, error) {
+	if target.IsTCP() {
+		latency, err := c.tcpDialer.Dial(ctx, target.TCPAddress(), target.Proxy, target.Timeout)
+
+		return 0, latency, err
+	}
+
+	resp, err := c.httpClient.Execute(ctx, Request{
+		Method:  target.Method,
+		URL:     target.URL,
+		Headers: target.Headers,
+		Timeout: target.Timeout,
+		Proxy:   target.Proxy,
+	})
+	if err != nil {
+		return resp.StatusCode, resp.Latency, err
+	}
+
+	if resp.StatusCode != target.ExpectedStatus {
+		return resp.StatusCode, resp.Latency, fmt.Errorf("status mismatch: expected %d, got %d", target.ExpectedStatus, resp.StatusCode)
+	}
+
+	return resp.StatusCode, resp.Latency, nil
 }
 
 // CheckAll performs health checks on multiple targets concurrently.

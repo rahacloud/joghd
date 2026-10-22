@@ -3,6 +3,7 @@ package proxy
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"resty.dev/v3"
@@ -100,4 +101,23 @@ func TestApply(t *testing.T) {
 			t.Errorf("proxy = %v, want none", got)
 		}
 	})
+}
+
+// Proxy settings reach logs and alert error text, so a password in a proxy
+// URL must never be printed.
+func TestLabelRedactsCredentials(t *testing.T) {
+	for setting, want := range map[string]string{
+		"":                                 "environment",
+		Direct:                             Direct,
+		"socks5h://127.0.0.1:2081":         "socks5h://127.0.0.1:2081",
+		"http://user:secret@proxy.example": "http://user:xxxxx@proxy.example",
+	} {
+		if got := Label(setting); got != want {
+			t.Errorf("Label(%q) = %q, want %q", setting, got, want)
+		}
+	}
+
+	if err := Validate("ftp://user:secret@proxy.example"); err == nil || strings.Contains(err.Error(), "secret") {
+		t.Errorf("Validate error = %v, want one without the password", err)
+	}
 }

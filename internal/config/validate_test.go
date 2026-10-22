@@ -71,7 +71,7 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 		{
 			name:    "target url without scheme",
 			body:    "[app]\nmode = \"oneshot\"\n[[targets]]\nname = \"api\"\nurl = \"api.example.com/health\"\n",
-			wantErr: "must use the http or https scheme",
+			wantErr: "must use the http, https or tcp scheme",
 		},
 		{
 			// time.NewTicker panics on a non-positive interval.
@@ -121,6 +121,17 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErr: "timeout must be positive",
 		},
 		{
+			name:    "tcp target without a port",
+			body:    "[app]\nmode = \"oneshot\"\n[[targets]]\nname = \"db\"\nurl = \"tcp://db.example.com\"\n",
+			wantErr: "must name a port",
+		},
+		{
+			// The proxy is inherited from http.proxy here.
+			name:    "tcp target behind an http proxy",
+			body:    "[app]\nmode = \"oneshot\"\n[http]\nproxy = \"http://127.0.0.1:3128\"\n[[targets]]\nname = \"db\"\nurl = \"tcp://db.example.com:5432\"\n",
+			wantErr: "cannot carry a tcp:// check",
+		},
+		{
 			name:    "unsupported http proxy scheme",
 			body:    "[app]\nmode = \"oneshot\"\n[http]\nproxy = \"ftp://127.0.0.1:21\"\n" + targetsBlock,
 			wantErr: "http.proxy",
@@ -147,6 +158,33 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				t.Errorf("error = %v, want it to contain %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// A TCP target needs no expected_status, and a SOCKS5 or direct route is fine.
+func TestLoadAcceptsTCPTargets(t *testing.T) {
+	cfg, err := Load(writeConfig(t, `
+[app]
+mode = "oneshot"
+
+[http]
+proxy = "socks5h://127.0.0.1:2081"
+
+[[targets]]
+name = "db"
+url = "tcp://db.example.com:5432"
+expected_status = 0
+
+[[targets]]
+name = "router"
+url = "tcp://192.168.78.254:22"
+proxy = "direct"
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Targets[0].IsTCP() || cfg.Targets[0].TCPAddress() != "db.example.com:5432" {
+		t.Errorf("target[0] = %+v, want a TCP check of db.example.com:5432", cfg.Targets[0])
 	}
 }
 

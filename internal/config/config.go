@@ -448,11 +448,14 @@ func validateTargets(targets []domain.Target) error {
 		if err != nil {
 			return fmt.Errorf("target[%d] (%s): invalid url %q: %w", i, t.Name, t.URL, err)
 		}
-		if u.Scheme != "http" && u.Scheme != "https" {
-			return fmt.Errorf("target[%d] (%s): url %q must use the http or https scheme", i, t.Name, t.URL)
+		if u.Scheme != "http" && u.Scheme != "https" && u.Scheme != domain.SchemeTCP {
+			return fmt.Errorf("target[%d] (%s): url %q must use the http, https or tcp scheme", i, t.Name, t.URL)
 		}
 		if u.Host == "" {
 			return fmt.Errorf("target[%d] (%s): url %q is missing a host", i, t.Name, t.URL)
+		}
+		if u.Scheme == domain.SchemeTCP && u.Port() == "" {
+			return fmt.Errorf("target[%d] (%s): url %q must name a port (tcp://host:port)", i, t.Name, t.URL)
 		}
 
 		// time.NewTicker panics on a non-positive interval, which would take
@@ -463,11 +466,18 @@ func validateTargets(targets []domain.Target) error {
 		if t.Timeout <= 0 {
 			return fmt.Errorf("target[%d] (%s): timeout must be positive, got %s", i, t.Name, t.Timeout)
 		}
-		if t.ExpectedStatus < 100 || t.ExpectedStatus > 599 {
+		// expected_status, method and headers mean nothing to a TCP connect.
+		if !t.IsTCP() && (t.ExpectedStatus < 100 || t.ExpectedStatus > 599) {
 			return fmt.Errorf("target[%d] (%s): expected_status %d is not a valid HTTP status code", i, t.Name, t.ExpectedStatus)
 		}
 		if err := proxy.Validate(t.Proxy); err != nil {
 			return fmt.Errorf("target[%d] (%s): proxy: %w", i, t.Name, err)
+		}
+		// An HTTP proxy only forwards HTTP; a TCP connect needs SOCKS5. The
+		// proxy may be inherited from http.proxy, hence the hint.
+		if t.IsTCP() && t.Proxy != "" && t.Proxy != proxy.Direct && !proxy.IsSOCKS(t.Proxy) {
+			return fmt.Errorf("target[%d] (%s): proxy %q is an HTTP proxy, which cannot carry a tcp:// check; "+
+				"give the target a socks5:// proxy or proxy = %q", i, t.Name, proxy.Label(t.Proxy), proxy.Direct)
 		}
 	}
 

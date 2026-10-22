@@ -116,13 +116,24 @@ func buildMattermostAttachment(alert domain.Alert) mattermostAttachment {
 		title = fmt.Sprintf("🔴 FAILURE — %s", alert.Target.Name)
 	}
 
-	fields := []mattermostField{
-		{Title: "URL", Value: fmt.Sprintf("`%s`", alert.Target.URL), Short: false},
-		{Title: "Expected", Value: fmt.Sprintf("%d", alert.Target.ExpectedStatus), Short: true},
-		{Title: "Actual", Value: fmt.Sprintf("%d", alert.Result.ActualStatus), Short: true},
-		{Title: "Latency", Value: alert.Result.Latency.Round(time.Millisecond).String(), Short: true},
-		{Title: "Attempts", Value: fmt.Sprintf("%d", alert.Result.Attempts), Short: true},
+	fields := []mattermostField{{Title: "URL", Value: fmt.Sprintf("`%s`", alert.Target.URL), Short: false}}
+
+	// A TCP connect has no status codes to compare.
+	if alert.Target.IsTCP() {
+		fields = append(fields, mattermostField{
+			Title: "Check", Value: fmt.Sprintf("TCP connect to `%s`", alert.Target.TCPAddress()), Short: false,
+		})
+	} else {
+		fields = append(fields,
+			mattermostField{Title: "Expected", Value: fmt.Sprintf("%d", alert.Target.ExpectedStatus), Short: true},
+			mattermostField{Title: "Actual", Value: fmt.Sprintf("%d", alert.Result.ActualStatus), Short: true},
+		)
 	}
+
+	fields = append(fields,
+		mattermostField{Title: "Latency", Value: alert.Result.Latency.Round(time.Millisecond).String(), Short: true},
+		mattermostField{Title: "Attempts", Value: fmt.Sprintf("%d", alert.Result.Attempts), Short: true},
+	)
 
 	if alert.Target.Company != "" {
 		fields = append(fields, mattermostField{Title: "Company", Value: alert.Target.Company, Short: true})

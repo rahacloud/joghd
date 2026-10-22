@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 
 	"github.com/pterm/pterm"
@@ -134,7 +133,7 @@ func provideLogger(appCfg config.AppConfig) *slog.Logger {
 func provideHTTPClient(lc fx.Lifecycle, httpCfg config.HTTPConfig) checker.HTTPClient {
 	client := checker.NewRestyClient(httpCfg)
 
-	slog.Info("Default proxy for checks and alerts", "proxy", proxyLabel(httpCfg.Proxy))
+	slog.Info("Default proxy for checks and alerts", "proxy", proxy.Label(httpCfg.Proxy))
 
 	lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
@@ -177,7 +176,7 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 		composite.Add(alerter.NewCompanyFilter(inner, a.Companies))
 		enabled++
 
-		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies, "proxy", proxyLabel(a.Proxy))
+		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies, "proxy", proxy.Label(a.Proxy))
 	}
 
 	if enabled == 0 {
@@ -185,24 +184,6 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 	}
 
 	return composite, nil
-}
-
-// proxyLabel renders a proxy setting for the logs, with any credentials in a
-// proxy URL redacted.
-func proxyLabel(setting string) string {
-	switch setting {
-	case "":
-		return "environment"
-	case proxy.Direct:
-		return proxy.Direct
-	}
-
-	u, err := url.Parse(setting)
-	if err != nil {
-		return "invalid"
-	}
-
-	return u.Redacted()
 }
 
 func registerRunner(
