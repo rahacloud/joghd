@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -119,5 +120,35 @@ func TestLabelRedactsCredentials(t *testing.T) {
 
 	if err := Validate("ftp://user:secret@proxy.example"); err == nil || strings.Contains(err.Error(), "secret") {
 		t.Errorf("Validate error = %v, want one without the password", err)
+	}
+}
+
+func TestDialer(t *testing.T) {
+	forward := &net.Dialer{}
+
+	for _, setting := range []string{"", Direct} {
+		d, err := Dialer(setting, forward)
+		if err != nil {
+			t.Fatalf("Dialer(%q): %v", setting, err)
+		}
+		if d != ContextDialer(forward) {
+			t.Errorf("Dialer(%q) did not return the forward dialer", setting)
+		}
+	}
+
+	for _, setting := range []string{"socks5://127.0.0.1:1080", "socks5h://user:pass@127.0.0.1:1080"} {
+		d, err := Dialer(setting, forward)
+		if err != nil {
+			t.Fatalf("Dialer(%q): %v", setting, err)
+		}
+		if d == ContextDialer(forward) {
+			t.Errorf("Dialer(%q) returned the forward dialer, want a SOCKS5 one", setting)
+		}
+	}
+
+	if _, err := Dialer("http://user:secret@127.0.0.1:3128", forward); err == nil {
+		t.Error("Dialer accepted an HTTP proxy")
+	} else if strings.Contains(err.Error(), "secret") {
+		t.Errorf("error leaks the proxy password: %v", err)
 	}
 }
