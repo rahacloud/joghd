@@ -26,9 +26,10 @@ type fakeClient struct {
 }
 
 type response struct {
-	status  int
-	latency time.Duration
-	err     error
+	status   int
+	latency  time.Duration
+	err      error
+	notAfter time.Time
 }
 
 func (f *fakeClient) Execute(ctx context.Context, _ Request) (Response, error) {
@@ -57,7 +58,7 @@ func (f *fakeClient) Execute(ctx context.Context, _ Request) (Response, error) {
 
 	r := f.responses[min(f.calls-1, len(f.responses)-1)]
 
-	return Response{StatusCode: r.status, Latency: r.latency}, r.err
+	return Response{StatusCode: r.status, Latency: r.latency, CertNotAfter: r.notAfter}, r.err
 }
 
 func fastRetry(attempts int) config.RetryConfig {
@@ -280,5 +281,78 @@ func TestCheckAllWithNonPositiveConcurrency(t *testing.T) {
 		c := New(WithHTTPClient(client), WithRetryConfig(fastRetry(1)), WithConcurrency(0))
 
 		c.CheckAll(t.Context(), []domain.Target{target("a")})
+	})
+}
+
+func TestCheckCertificateExpiry(t *testing.T) {
+	const day = 24 * time.Hour
+
+	tests := []struct {
+		name        string
+		window      time.Duration
+		expiresIn   time.Duration
+		plainHTTP   bool
+		wantSuccess bool
+		wantErr     string
+	}{
+		{name: "inside the window", window: 14 * day, expiresIn: 5 * day, wantErr: "expires in 5 days"},
+		{name: "outside the window", window: 14 * day, expiresIn: 30 * day, wantSuccess: true},
+		{name: "turned off", window: 0, expiresIn: 5 * day, wantSuccess: true},
+		{name: "turned off for the target", window: -1, expiresIn: 5 * day, wantSuccess: true},
+		{name: "no TLS", window: 14 * day, plainHTTP: true, wantSuccess: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// A frozen clock makes "N days" exact instead of N-1 and a bit.
+			synctest.Test(t, func(t *testing.T) {
+				r := response{status: http.StatusOK}
+				if !tc.plainHTTP {
+					r.notAfter = time.Now().Add(tc.expiresIn)
+				}
+				client := &fakeClient{responses: []response{r}}
+
+				tgt := target("api")
+				tgt.URL = "https://api.example.com/health"
+				tgt.CertExpiryWarning = tc.window
+
+				result := New(WithHTTPClient(client), WithRetryConfig(fastRetry(3))).Check(t.Context(), tgt)
+
+				if result.Success != tc.wantSuccess {
+					t.Fatalf("Success = %v, want %v (error %v)", result.Success, tc.wantSuccess, result.Error)
+				}
+				if tc.wantSuccess {
+					return
+				}
+
+				if _, ok := errors.AsType[*CertExpiryError](result.Error); !ok {
+					t.Fatalf("error = %v, want a *CertExpiryError", result.Error)
+				}
+				if msg := result.Error.Error(); msg != "certificate for api.example.com "+tc.wantErr+" ("+r.notAfter.UTC().Format(time.DateOnly)+")" {
+					t.Errorf("error = %q", msg)
+				}
+				// Retrying cannot renew a certificate.
+				if result.Attempts != 1 || client.calls != 1 {
+					t.Errorf("Attempts = %d with %d requests, want 1 and 1", result.Attempts, client.calls)
+				}
+			})
+		})
+	}
+}
+
+func TestCertExpiryErrorMessage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		date := func(d time.Duration) string { return now.Add(d).UTC().Format(time.DateOnly) }
+
+		for left, want := range map[time.Duration]string{
+			-2 * time.Hour: "certificate for h expired on " + date(-2*time.Hour),
+			6 * time.Hour:  "certificate for h expires in less than a day (" + date(6*time.Hour) + ")",
+			30 * time.Hour: "certificate for h expires in 1 day (" + date(30*time.Hour) + ")",
+		} {
+			if got := (&CertExpiryError{Host: "h", NotAfter: now.Add(left)}).Error(); got != want {
+				t.Errorf("%s left: %q, want %q", left, got, want)
+			}
+		}
 	})
 }

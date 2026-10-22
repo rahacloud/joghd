@@ -36,6 +36,9 @@ type Request struct {
 type Response struct {
 	StatusCode int
 	Latency    time.Duration
+	// CertNotAfter is the expiry of the server's leaf certificate, or zero
+	// when the request did not use TLS.
+	CertNotAfter time.Time
 }
 
 // HTTPClient abstracts HTTP operations for testability.
@@ -117,6 +120,12 @@ func (c *RestyClient) Execute(ctx context.Context, req Request) (Response, error
 	}
 
 	out.StatusCode = resp.StatusCode()
+
+	// The connection state of the verified handshake: no second connection,
+	// and no reason to skip verification to read the certificate.
+	if raw := resp.RawResponse; raw != nil && raw.TLS != nil && len(raw.TLS.PeerCertificates) > 0 {
+		out.CertNotAfter = raw.TLS.PeerCertificates[0].NotAfter
+	}
 
 	return out, nil
 }

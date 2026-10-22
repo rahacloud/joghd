@@ -132,6 +132,11 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErr: "cannot carry a tcp:// check",
 		},
 		{
+			name:    "negative global cert expiry warning",
+			body:    "[app]\nmode = \"oneshot\"\n[http]\ncert_expiry_warning = \"-1h\"\n" + targetsBlock,
+			wantErr: "http.cert_expiry_warning must not be negative",
+		},
+		{
 			name:    "unsupported http proxy scheme",
 			body:    "[app]\nmode = \"oneshot\"\n[http]\nproxy = \"ftp://127.0.0.1:21\"\n" + targetsBlock,
 			wantErr: "http.proxy",

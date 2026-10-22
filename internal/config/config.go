@@ -123,6 +123,11 @@ type HTTPConfig struct {
 	// set its own: a proxy URL (http, https, socks5, socks5h), the literal
 	// "direct", or empty to follow the HTTP_PROXY/HTTPS_PROXY environment.
 	Proxy string `koanf:"proxy"`
+
+	// CertExpiryWarning fails an https check whose certificate expires within
+	// this window. Zero (the default) turns the check off; a target can set
+	// its own window.
+	CertExpiryWarning time.Duration `koanf:"cert_expiry_warning"`
 }
 
 // RetryConfig holds retry behavior settings.
@@ -305,6 +310,10 @@ func applyDefaults(cfg *Config) {
 		if t.Proxy == "" {
 			t.Proxy = cfg.HTTP.Proxy
 		}
+		// Zero inherits; a negative window stays negative and means "off".
+		if t.CertExpiryWarning == 0 {
+			t.CertExpiryWarning = cfg.HTTP.CertExpiryWarning
+		}
 
 		if t.Method == "" {
 			t.Method = DefaultTargetMethod
@@ -346,6 +355,10 @@ func validate(cfg *Config) error {
 
 	if err := proxy.Validate(cfg.HTTP.Proxy); err != nil {
 		return fmt.Errorf("http.proxy: %w", err)
+	}
+
+	if cfg.HTTP.CertExpiryWarning < 0 {
+		return fmt.Errorf("http.cert_expiry_warning must not be negative, got %s (use 0 to turn it off)", cfg.HTTP.CertExpiryWarning)
 	}
 
 	if err := validateRetry(cfg.Retry); err != nil {

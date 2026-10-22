@@ -151,3 +151,38 @@ proxy = "http://127.0.0.1:3128"
 		}
 	}
 }
+
+// Zero inherits http.cert_expiry_warning; a negative target value turns the
+// check off for that target and survives defaulting.
+func TestLoadCertExpiryWarningInheritance(t *testing.T) {
+	cfg, err := Load(writeConfig(t, `
+[app]
+mode = "oneshot"
+
+[http]
+cert_expiry_warning = "336h"
+
+[[targets]]
+name = "inherits"
+url = "https://api.example.com/health"
+
+[[targets]]
+name = "own"
+url = "https://short.example.com/health"
+cert_expiry_warning = "72h"
+
+[[targets]]
+name = "off"
+url = "https://selfsigned.example.com/health"
+cert_expiry_warning = "-1s"
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	for i, want := range []time.Duration{336 * time.Hour, 72 * time.Hour, -time.Second} {
+		if got := cfg.Targets[i].CertExpiryWarning; got != want {
+			t.Errorf("target %s cert_expiry_warning = %s, want %s", cfg.Targets[i].Name, got, want)
+		}
+	}
+}

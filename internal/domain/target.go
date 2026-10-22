@@ -27,6 +27,11 @@ type Target struct {
 	// Proxy routes this target's checks through a proxy: a proxy URL, the
 	// literal "direct" for none at all, or empty to inherit http.proxy.
 	Proxy string `koanf:"proxy"`
+
+	// CertExpiryWarning fails an https check whose certificate expires within
+	// this window. Zero inherits http.cert_expiry_warning; a negative value
+	// turns the check off for this target.
+	CertExpiryWarning time.Duration `koanf:"cert_expiry_warning"`
 }
 
 // IsTCP reports whether the target is a TCP connect check rather than an HTTP

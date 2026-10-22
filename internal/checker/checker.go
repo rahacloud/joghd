@@ -10,7 +10,9 @@ package checker
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -124,6 +126,12 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 
 		result.Error = err
 
+		// A certificate does not renew itself between attempts; retrying
+		// only delays the alert.
+		if _, expiring := errors.AsType[*CertExpiryError](err); expiring {
+			return result
+		}
+
 		// Don't wait after the last attempt
 		if attempt < c.retryConfig.MaxAttempts {
 			select {
@@ -165,7 +173,43 @@ func (c *checker) probe(ctx context.Context, target domain.Target) (int, time.Du
 		return resp.StatusCode, resp.Latency, fmt.Errorf("status mismatch: expected %d, got %d", target.ExpectedStatus, resp.StatusCode)
 	}
 
+	if window := target.CertExpiryWarning; window > 0 && !resp.CertNotAfter.IsZero() {
+		if time.Until(resp.CertNotAfter) < window {
+			host := target.URL
+			if u, err := url.Parse(target.URL); err == nil {
+				host = u.Hostname()
+			}
+
+			return resp.StatusCode, resp.Latency, &CertExpiryError{Host: host, NotAfter: resp.CertNotAfter}
+		}
+	}
+
 	return resp.StatusCode, resp.Latency, nil
+}
+
+// CertExpiryError fails an https check whose certificate expires within the
+// target's cert_expiry_warning window.
+type CertExpiryError struct {
+	Host     string
+	NotAfter time.Time
+}
+
+// Error says how long the certificate has left, e.g. "certificate for
+// example.com expires in 9 days (2026-11-03)".
+func (e *CertExpiryError) Error() string {
+	date := e.NotAfter.UTC().Format(time.DateOnly)
+	left := time.Until(e.NotAfter)
+
+	switch days := int(left.Hours() / 24); {
+	case left <= 0:
+		return fmt.Sprintf("certificate for %s expired on %s", e.Host, date)
+	case days == 0:
+		return fmt.Sprintf("certificate for %s expires in less than a day (%s)", e.Host, date)
+	case days == 1:
+		return fmt.Sprintf("certificate for %s expires in 1 day (%s)", e.Host, date)
+	default:
+		return fmt.Sprintf("certificate for %s expires in %d days (%s)", e.Host, days, date)
+	}
 }
 
 // CheckAll performs health checks on multiple targets concurrently.

@@ -252,3 +252,31 @@ func TestRestyClientOneClientPerProxySetting(t *testing.T) {
 		t.Errorf("Close: %v", err)
 	}
 }
+
+// The certificate is read from the verified handshake: the test server's own
+// transport trusts its certificate, so verification stays on.
+func TestRestyClientReportsCertificateExpiry(t *testing.T) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(okJSONHandler))
+	srv.StartTLS()
+
+	client := NewRestyClient(config.HTTPConfig{Timeout: 5 * time.Second, UserAgent: "Joghd/test"})
+	client.clientFor("").SetTransport(srv.Client().Transport)
+	t.Cleanup(func() { _ = client.Close() })
+
+	resp, err := client.Execute(t.Context(), Request{Method: http.MethodGet, URL: srv.URL, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if want := srv.Certificate().NotAfter; !resp.CertNotAfter.Equal(want) {
+		t.Errorf("CertNotAfter = %s, want %s", resp.CertNotAfter, want)
+	}
+
+	plain, _ := jsonServer(t, okJSONHandler)
+	resp, err = client.Execute(t.Context(), Request{Method: http.MethodGet, URL: plain.URL, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("Execute over plain HTTP: %v", err)
+	}
+	if !resp.CertNotAfter.IsZero() {
+		t.Errorf("plain HTTP reported a certificate expiry of %s", resp.CertNotAfter)
+	}
+}
