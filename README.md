@@ -76,6 +76,7 @@ without standing up a monitoring stack:
 - **Certificate expiry warnings**: an HTTPS check fails while its TLS certificate is within a configurable window of expiring, before it breaks the site
 - **Jittered scheduling**: targets sharing an interval do not all probe on the
   same instant
+- **Prometheus metrics**: an optional `/metrics` endpoint with each target's up/down state, latency, status code and certificate expiry, plus alert delivery counters, for Grafana dashboards and Alertmanager rules
 - **Correlation IDs**: every alert carries a UUIDv7 that appears in the logs
   and in the message, so one incident is traceable end to end
 - **Extensible**: implement the `Alerter` interface to add a channel
@@ -166,6 +167,10 @@ initial_wait = "1s"
 max_wait = "10s"
 multiplier = 2.0
 
+# Serve Prometheus metrics on this address (optional, see "Metrics").
+[metrics]
+listen = "127.0.0.1:9469"
+
 # One or more named alerter instances. The table key is the instance
 # name (used in logs). `companies` is an optional allow-list — empty or
 # missing means "catch-all" and receives every alert.
@@ -229,6 +234,27 @@ A target whose `url` is `tcp://host:port` is a TCP connect check: it passes when
 ### Certificate expiry warnings
 
 `http.cert_expiry_warning` is a duration such as `"336h"` (two weeks). While an HTTPS target's certificate expires within that window, its check fails with `certificate for <host> expires in N days (YYYY-MM-DD)`, which goes out through the usual failure, reminder and recovery alerts. The default `0` turns the check off. A target can set its own `cert_expiry_warning`: `0` or leaving it out inherits the global window, and a negative value such as `"-1s"` turns the check off for that target only. The certificate is the one from the check's own verified TLS handshake, and an expiring certificate is not retried, since retrying cannot renew it.
+
+### Metrics
+
+Set `metrics.listen` to a `host:port`, such as `"127.0.0.1:9469"`, and Joghd serves Prometheus metrics at `/metrics` on it. It is off by default, Joghd refuses to start if the address is taken, and the endpoint has no authentication, so bind it to localhost or a private address. Metrics only mean something in `continuous` mode.
+
+Every per-target series carries the labels `target`, `company` and `scheme` (`http`, `https` or `tcp`), and reflects the target's latest check:
+
+| Metric | Meaning |
+| --- | --- |
+| `joghd_target_up` | `1` if the latest check passed, `0` if it failed |
+| `joghd_target_latency_seconds` | latency of the check's final attempt |
+| `joghd_target_status_code` | HTTP status, `0` for a TCP check or no response |
+| `joghd_target_attempts` | attempts the check took, retries included |
+| `joghd_target_last_check_timestamp_seconds` | when the latest check ran |
+| `joghd_target_cert_expiry_timestamp_seconds` | when the HTTPS certificate expires; kept through a failed handshake |
+| `joghd_checks_total{result}` | checks run, `result` is `success` or `failure` |
+| `joghd_alerts_sent_total{alerter,kind}` | alerts delivered, `kind` is `failure`, `reminder` or `recovery` |
+| `joghd_alert_failures_total{alerter,kind}` | alerts an alerter failed to deliver |
+| `joghd_build_info{version,commit}` | always `1` |
+
+The counters exist at zero from startup, so rules such as `increase(joghd_alert_failures_total[1h]) > 0` work before anything has happened. The Go runtime and process metrics (`go_*`, `process_*`) are served too. A useful pair of alert rules: `joghd_target_up == 0` for a target that is down, and `up{job="joghd"} == 0` or `absent(joghd_build_info)` for Joghd itself, since a stopped monitor sends no alerts of its own.
 
 ## Environment variables
 
@@ -321,6 +347,10 @@ back to healthy.
 ### Does it support ICMP ping, TCP ports, or DNS checks?
 
 TCP ports, yes: a `tcp://host:port` target is a TCP connect check (see [TCP checks](#tcp-checks)). ICMP ping and DNS checks are not supported.
+
+### Can I graph it or alert on it from Prometheus?
+
+Yes. Set `metrics.listen` and scrape `/metrics` (see [Metrics](#metrics)).
 
 ### Can it warn me before a certificate expires?
 

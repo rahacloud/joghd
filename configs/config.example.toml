@@ -47,6 +47,12 @@ max_wait = "10s"
 # Multiplier for exponential backoff
 multiplier = 2.0
 
+[metrics]
+# Serve Prometheus metrics at /metrics on this host:port. Empty (the default)
+# serves nothing. There is no authentication: bind to localhost or a private
+# address.
+# listen = "127.0.0.1:9469"
+
 # Alerter instances are declared under [alerters.<name>]. The table key
 # becomes the instance name used in logs. You can declare multiple
 # instances of the same type (e.g. one Telegram channel per company).
