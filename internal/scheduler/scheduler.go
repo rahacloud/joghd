@@ -20,6 +20,7 @@ import (
 	"github.com/rahacloud/joghd/internal/checker"
 	"github.com/rahacloud/joghd/internal/config"
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/metrics"
 )
 
 // tickJitterFraction is the largest share of a target's interval that may be
@@ -45,15 +46,21 @@ type targetState struct {
 type Scheduler struct {
 	checker            checker.Checker
 	alerter            alerter.Alerter
+	recorder           metrics.Recorder
 	targets            []domain.Target
 	reminderMultiplier int
 }
 
 // New creates a new scheduler.
-func New(chk checker.Checker, alt alerter.Alerter, targets []domain.Target, appCfg config.AppConfig) *Scheduler {
+func New(chk checker.Checker, alt alerter.Alerter, rec metrics.Recorder, targets []domain.Target, appCfg config.AppConfig) *Scheduler {
+	for _, t := range targets {
+		rec.RegisterTarget(t)
+	}
+
 	return &Scheduler{
 		checker:            chk,
 		alerter:            alt,
+		recorder:           rec,
 		targets:            targets,
 		reminderMultiplier: appCfg.ReminderMultiplier,
 	}
@@ -121,6 +128,7 @@ func (t *targetState) nextDelay(interval time.Duration) time.Duration {
 
 func (s *Scheduler) checkAndAlert(ctx context.Context, target domain.Target, state *targetState) {
 	result := s.checker.Check(ctx, target)
+	s.recorder.ObserveCheck(result)
 
 	currentStatus := domain.StatusUnhealthy
 	if result.Success {

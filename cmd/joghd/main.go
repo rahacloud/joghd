@@ -15,10 +15,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/pterm/pterm"
 	"go.uber.org/fx"
@@ -28,6 +32,7 @@ import (
 	"github.com/rahacloud/joghd/internal/checker"
 	"github.com/rahacloud/joghd/internal/config"
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/metrics"
 	"github.com/rahacloud/joghd/internal/proxy"
 	"github.com/rahacloud/joghd/internal/scheduler"
 )
@@ -101,6 +106,10 @@ func main() {
 			),
 		),
 
+		fx.Module("metrics",
+			fx.Provide(provideRecorder),
+		),
+
 		fx.Module("alerter",
 			fx.Provide(provideAlerter),
 		),
@@ -152,7 +161,54 @@ func provideChecker(client checker.HTTPClient, retryCfg config.RetryConfig, appC
 	)
 }
 
-func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, error) {
+// metricsReadHeaderTimeout bounds how long a /metrics client may take to send
+// its request headers, so a stalled scraper cannot hold a connection open.
+const metricsReadHeaderTimeout = 10 * time.Second
+
+// provideRecorder serves Prometheus metrics on metrics.listen for the life of
+// the application, or returns a no-op recorder when it is not set.
+func provideRecorder(lc fx.Lifecycle, metricsCfg config.MetricsConfig) metrics.Recorder {
+	if metricsCfg.Listen == "" {
+		return metrics.Nop{}
+	}
+
+	m := metrics.New(version, commit)
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /metrics", m.Handler())
+
+	srv := &http.Server{
+		Addr:              metricsCfg.Listen,
+		Handler:           mux,
+		ReadHeaderTimeout: metricsReadHeaderTimeout,
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			// Listen here rather than in the goroutine, so a taken port
+			// fails startup instead of being logged and ignored.
+			ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", metricsCfg.Listen)
+			if err != nil {
+				return fmt.Errorf("metrics.listen: %w", err)
+			}
+
+			slog.Info("Serving metrics", "address", ln.Addr().String())
+
+			go func() {
+				if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					slog.Error("Metrics server stopped", "error", err)
+				}
+			}()
+
+			return nil
+		},
+		OnStop: srv.Shutdown,
+	})
+
+	return m
+}
+
+func provideAlerter(alerters map[string]config.AlerterConfig, rec metrics.Recorder) (alerter.Alerter, error) {
 	composite := alerter.NewCompositeAlerter()
 
 	enabled := 0
@@ -173,7 +229,8 @@ func provideAlerter(alerters map[string]config.AlerterConfig) (alerter.Alerter, 
 			return nil, fmt.Errorf("unsupported alerter type %q for %q", a.Type, name)
 		}
 
-		composite.Add(alerter.NewCompanyFilter(inner, a.Companies))
+		rec.RegisterAlerter(name)
+		composite.Add(alerter.NewCompanyFilter(alerter.NewInstrumented(inner, rec), a.Companies))
 		enabled++
 
 		slog.Info("Alerter enabled", "name", name, "type", a.Type, "companies", a.Companies, "proxy", proxy.Label(a.Proxy))

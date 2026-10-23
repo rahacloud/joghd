@@ -17,6 +17,7 @@ import (
 	"github.com/rahacloud/joghd/internal/checker"
 	"github.com/rahacloud/joghd/internal/config"
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/metrics"
 	"github.com/rahacloud/joghd/internal/scheduler"
 )
 
@@ -184,7 +185,7 @@ func TestProvideAlerter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := provideAlerter(tc.alerters)
+			got, err := provideAlerter(tc.alerters, metrics.Nop{})
 
 			if tc.wantErr {
 				if err == nil {
@@ -261,7 +262,7 @@ func TestRegisterRunnerContinuousRunsAndStops(t *testing.T) {
 	lc := fxtest.NewLifecycle(t)
 	chk := &stubChecker{success: true}
 	alt := &stubAlerter{}
-	sched := scheduler.New(chk, alt, testTargets(), config.AppConfig{})
+	sched := scheduler.New(chk, alt, metrics.Nop{}, testTargets(), config.AppConfig{})
 
 	if err := registerRunner(lc, &stubShutdowner{}, config.AppConfig{Mode: config.ModeContinuous},
 		chk, alt, testTargets(), sched); err != nil {

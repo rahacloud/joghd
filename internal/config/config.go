@@ -9,6 +9,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,6 +81,7 @@ type Config struct {
 	App      AppConfig                `koanf:"app"`
 	HTTP     HTTPConfig               `koanf:"http"`
 	Retry    RetryConfig              `koanf:"retry"`
+	Metrics  MetricsConfig            `koanf:"metrics"`
 	Alerters map[string]AlerterConfig `koanf:"alerters"`
 	Targets  []domain.Target          `koanf:"targets"`
 }
@@ -93,6 +95,7 @@ type Sections struct {
 	App      AppConfig
 	HTTP     HTTPConfig
 	Retry    RetryConfig
+	Metrics  MetricsConfig
 	Alerters map[string]AlerterConfig
 	Targets  []domain.Target
 }
@@ -136,6 +139,13 @@ type RetryConfig struct {
 	InitialWait time.Duration `koanf:"initial_wait"`
 	MaxWait     time.Duration `koanf:"max_wait"`
 	Multiplier  float64       `koanf:"multiplier"`
+}
+
+// MetricsConfig holds the Prometheus metrics endpoint settings.
+type MetricsConfig struct {
+	// Listen is the host:port that serves /metrics, e.g. "127.0.0.1:9469".
+	// Empty (the default) serves nothing.
+	Listen string `koanf:"listen"`
 }
 
 // AlerterConfig holds a single alerter instance configuration. The
@@ -247,6 +257,11 @@ func decodeSections(l *loader) (*Config, error) {
 		return nil, err
 	}
 
+	metrics, err := l.Section[MetricsConfig]("metrics")
+	if err != nil {
+		return nil, err
+	}
+
 	alerters, err := l.Section[map[string]AlerterConfig]("alerters")
 	if err != nil {
 		return nil, err
@@ -261,6 +276,7 @@ func decodeSections(l *loader) (*Config, error) {
 		App:      app,
 		HTTP:     httpCfg,
 		Retry:    retry,
+		Metrics:  metrics,
 		Alerters: alerters,
 		Targets:  targets,
 	}, nil
@@ -286,6 +302,7 @@ func ProvideConfig(params CLIParams) (Sections, error) {
 		App:      cfg.App,
 		HTTP:     cfg.HTTP,
 		Retry:    cfg.Retry,
+		Metrics:  cfg.Metrics,
 		Alerters: cfg.Alerters,
 		Targets:  cfg.Targets,
 	}, nil
@@ -363,6 +380,12 @@ func validate(cfg *Config) error {
 
 	if err := validateRetry(cfg.Retry); err != nil {
 		return err
+	}
+
+	if cfg.Metrics.Listen != "" {
+		if _, _, err := net.SplitHostPort(cfg.Metrics.Listen); err != nil {
+			return fmt.Errorf("metrics.listen: %w", err)
+		}
 	}
 
 	if err := validateAlerters(cfg.Alerters); err != nil {

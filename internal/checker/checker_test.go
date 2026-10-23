@@ -321,6 +321,10 @@ func TestCheckCertificateExpiry(t *testing.T) {
 				if result.Success != tc.wantSuccess {
 					t.Fatalf("Success = %v, want %v (error %v)", result.Success, tc.wantSuccess, result.Error)
 				}
+				// The metrics read the expiry off the result, pass or fail.
+				if !result.CertNotAfter.Equal(r.notAfter) {
+					t.Errorf("CertNotAfter = %v, want %v", result.CertNotAfter, r.notAfter)
+				}
 				if tc.wantSuccess {
 					return
 				}

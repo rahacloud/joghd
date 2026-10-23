@@ -10,6 +10,7 @@ import (
 
 	"github.com/rahacloud/joghd/internal/config"
 	"github.com/rahacloud/joghd/internal/domain"
+	"github.com/rahacloud/joghd/internal/metrics"
 )
 
 // stubChecker reports a fixed outcome and counts the checks it performed.
@@ -113,7 +114,7 @@ func testTarget() domain.Target {
 }
 
 func newScheduler(chk *stubChecker, alt *recordingAlerter, reminderMultiplier int) *Scheduler {
-	return New(chk, alt, []domain.Target{testTarget()}, config.AppConfig{ReminderMultiplier: reminderMultiplier})
+	return New(chk, alt, metrics.Nop{}, []domain.Target{testTarget()}, config.AppConfig{ReminderMultiplier: reminderMultiplier})
 }
 
 func TestCheckAndAlertTransitions(t *testing.T) {
@@ -277,7 +278,7 @@ func TestTargetsSharingAURLDoNotInterfere(t *testing.T) {
 	second.Name = "api-204"
 	second.ExpectedStatus = 204
 
-	s := New(chk, alt, []domain.Target{first, second}, config.AppConfig{})
+	s := New(chk, alt, metrics.Nop{}, []domain.Target{first, second}, config.AppConfig{})
 
 	stateA := targetState{status: domain.StatusUnknown}
 	stateB := targetState{status: domain.StatusUnknown}

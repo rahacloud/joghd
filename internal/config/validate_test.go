@@ -54,6 +54,11 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErr: "retry.max_wait",
 		},
 		{
+			name:    "metrics listen without a port",
+			body:    minimalConfig + "\n[metrics]\nlisten = \"127.0.0.1\"\n",
+			wantErr: "metrics.listen",
+		},
+		{
 			name:    "no targets",
 			body:    "[app]\nmode = \"oneshot\"\n",
 			wantErr: "no targets configured",

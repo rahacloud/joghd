@@ -109,11 +109,12 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 		default:
 		}
 
-		statusCode, latency, err := c.probe(ctx, target)
+		resp, err := c.probe(ctx, target)
 
 		result.Attempts = attempt
-		result.Latency = latency
-		result.ActualStatus = statusCode
+		result.Latency = resp.Latency
+		result.ActualStatus = resp.StatusCode
+		result.CertNotAfter = resp.CertNotAfter
 
 		if err == nil {
 			result.Success = true
@@ -149,13 +150,13 @@ func (c *checker) Check(ctx context.Context, target domain.Target) domain.CheckR
 	return result
 }
 
-// probe runs one attempt against target and returns the HTTP status (zero for
-// a TCP check), the latency, and nil only if the attempt passed.
-func (c *checker) probe(ctx context.Context, target domain.Target) (int, time.Duration, error) {
+// probe runs one attempt against target and returns what it observed (a zero
+// status for a TCP check) and nil only if the attempt passed.
+func (c *checker) probe(ctx context.Context, target domain.Target) (Response, error) {
 	if target.IsTCP() {
 		latency, err := c.tcpDialer.Dial(ctx, target.TCPAddress(), target.Proxy, target.Timeout)
 
-		return 0, latency, err
+		return Response{Latency: latency}, err
 	}
 
 	resp, err := c.httpClient.Execute(ctx, Request{
@@ -166,11 +167,11 @@ func (c *checker) probe(ctx context.Context, target domain.Target) (int, time.Du
 		Proxy:   target.Proxy,
 	})
 	if err != nil {
-		return resp.StatusCode, resp.Latency, err
+		return resp, err
 	}
 
 	if resp.StatusCode != target.ExpectedStatus {
-		return resp.StatusCode, resp.Latency, fmt.Errorf("status mismatch: expected %d, got %d", target.ExpectedStatus, resp.StatusCode)
+		return resp, fmt.Errorf("status mismatch: expected %d, got %d", target.ExpectedStatus, resp.StatusCode)
 	}
 
 	if window := target.CertExpiryWarning; window > 0 && !resp.CertNotAfter.IsZero() {
@@ -180,11 +181,11 @@ func (c *checker) probe(ctx context.Context, target domain.Target) (int, time.Du
 				host = u.Hostname()
 			}
 
-			return resp.StatusCode, resp.Latency, &CertExpiryError{Host: host, NotAfter: resp.CertNotAfter}
+			return resp, &CertExpiryError{Host: host, NotAfter: resp.CertNotAfter}
 		}
 	}
 
-	return resp.StatusCode, resp.Latency, nil
+	return resp, nil
 }
 
 // CertExpiryError fails an https check whose certificate expires within the

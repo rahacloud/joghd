@@ -62,6 +62,9 @@ type CheckResult struct {
 	Latency      time.Duration
 	Timestamp    time.Time
 	Attempts     int
+	// CertNotAfter is the expiry of the leaf certificate seen by the last
+	// attempt, or zero for a TCP check or a request that did not use TLS.
+	CertNotAfter time.Time
 }
 
 // HealthStatus represents the overall health state of a target.
