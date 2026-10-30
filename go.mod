@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/pterm/pterm v0.12.84
 	go.uber.org/fx v1.24.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	resty.dev/v3 v3.0.0-rc.4
 )
 
