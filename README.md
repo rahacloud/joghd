@@ -377,6 +377,14 @@ The test suite runs on a fake clock via `testing/synctest`, so the retry,
 timeout and scheduling tests complete in microseconds and are not timing
 dependent.
 
+## Who is behind Joghd
+
+Joghd is built and maintained by [Raha Cloud](https://rahacloud.com/en), an
+infrastructure and DevOps consulting team. We run it in production for many of
+our clients, where it watches their public services around the clock. If you
+would rather have someone set up and operate your monitoring, deployments or
+Kubernetes for you, [get in touch](https://rahacloud.com/en#contact).
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).
