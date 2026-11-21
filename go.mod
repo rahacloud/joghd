@@ -36,7 +36,7 @@ require (
 	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.73.1 // indirect
+	github.com/prometheus/common v0.74.0 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
